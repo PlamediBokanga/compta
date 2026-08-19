@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+﻿import { useEffect } from 'react';
 import { RouterProvider, useRouter } from './lib/router';
 import { AuthProvider, useAuth } from './lib/auth';
 import { ToastProvider } from './components/ui/Toast';
@@ -30,6 +30,7 @@ import { SupportPage } from './pages/app/Support';
 import { CustomersPage } from './pages/app/Customers';
 import { CatalogItemsPage } from './pages/app/CatalogItems';
 import { ApiSettingsPage } from './pages/app/ApiSettings';
+import { supabaseEnvReady } from './lib/supabase';
 
 function PublicLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -37,6 +38,35 @@ function PublicLayout({ children }: { children: React.ReactNode }) {
       <PublicNav />
       {children}
       <PublicFooter />
+    </div>
+  );
+}
+
+function DeploymentConfigError() {
+  return (
+    <div className="grid min-h-screen place-items-center bg-ink-50 px-4">
+      <div className="w-full max-w-2xl rounded-3xl border border-warning-200 bg-white p-8 shadow-sm">
+        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-warning-700">Configuration requise</p>
+        <h1 className="mt-2 font-display text-3xl font-extrabold tracking-tight text-ink-950">L'application est en ligne, mais la configuration Vercel est incomplete.</h1>
+        <p className="mt-4 text-sm leading-6 text-ink-600">
+          Cette page remplace l'ancien ecran vide. Ajoutez ou verifiez les variables d'environnement du frontend dans Vercel, puis redeployez le projet.
+        </p>
+        <div className="mt-6 rounded-2xl bg-ink-50 p-4 text-sm text-ink-700">
+          <p className="font-semibold text-ink-900">Variables attendues :</p>
+          <p className="mt-2 font-mono">VITE_SUPABASE_URL</p>
+          <p className="mt-1 font-mono">VITE_SUPABASE_ANON_KEY</p>
+        </div>
+        <div className="mt-6 grid gap-3 md:grid-cols-2">
+          <div className="rounded-2xl bg-ink-50 p-4">
+            <p className="text-xs text-ink-500">Etape 1</p>
+            <p className="mt-1 text-sm font-semibold text-ink-900">Ouvrir Project Settings dans Vercel</p>
+          </div>
+          <div className="rounded-2xl bg-ink-50 p-4">
+            <p className="text-xs text-ink-500">Etape 2</p>
+            <p className="mt-1 text-sm font-semibold text-ink-900">Verifier les variables et relancer un redeploy</p>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
@@ -125,6 +155,10 @@ function Routes() {
 }
 
 function App() {
+  if (!supabaseEnvReady) {
+    return <DeploymentConfigError />;
+  }
+
   return (
     <RouterProvider>
       <AuthProvider>
@@ -137,4 +171,3 @@ function App() {
 }
 
 export default App;
-
