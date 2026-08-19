@@ -1,4 +1,4 @@
-# Compta
+﻿# Compta
 
 Compta est une application de gestion, facturation, comptabilite et obligations declaratives pensee pour la Republique Democratique du Congo.
 
@@ -90,6 +90,26 @@ npm run lint
 npm run typecheck
 ```
 
+## Deploiement test
+
+Le projet est prepare pour un deploiement frontend sur Vercel avec Supabase.
+
+Fichiers ajoutes pour cette preparation :
+
+- `.env.example`
+- `vercel.json`
+- `DEPLOYMENT.md`
+
+Pour une premiere mise en ligne de test avec l'equipe :
+
+1. importer le depot GitHub dans Vercel
+2. renseigner `VITE_SUPABASE_URL` et `VITE_SUPABASE_ANON_KEY`
+3. configurer les URLs de redirection dans Supabase Auth
+4. verifier les secrets de la fonction `send-email`
+
+Guide detaille :
+
+`DEPLOYMENT.md`
 ## Base de donnees et Supabase
 
 Le dossier `supabase/` contient :
@@ -122,3 +142,4 @@ Depot GitHub :
 - finaliser la logique declarative RDC
 - poursuivre la conformite comptable SYSCOHADA / CPCC
 - preparer ensuite le deploiement en ligne
+
