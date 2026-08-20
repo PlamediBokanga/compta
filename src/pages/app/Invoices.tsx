@@ -12,7 +12,7 @@ import { sendInvoiceEmail, sendReminderEmail } from '../../lib/email';
 import { fmtDate, fmtMoney, fmtMoneyWords, initials } from '../../lib/format';
 import { useCatalogItems, useCategories, useCustomers, useInvoices, useTransactions } from '../../lib/hooks';
 import { buildInvoiceQrPayload, buildVerificationCode, canNormalizeInvoice, getInvoiceComplianceChecks, getInvoiceNormalizationLabel, getInvoiceNormalizationStatus, RDC_STANDARD_VAT_RATE } from '../../lib/rdc';
-import type { CatalogItem, Category, Customer, Invoice, InvoiceItem, InvoiceStatus, Profile, Transaction } from '../../lib/types';
+import type { CatalogItem, CatalogItemType, Category, Customer, Invoice, InvoiceItem, InvoiceKind, InvoiceStatus, Profile, Transaction } from '../../lib/types';
 
 const statusMeta: Record<InvoiceStatus, { label: string; tone: 'success' | 'danger' | 'brand' | 'neutral'; icon: LucideIcon }> = {
   paid: { label: 'Payee', tone: 'success', icon: CheckCircle2 },
@@ -24,11 +24,14 @@ const statusMeta: Record<InvoiceStatus, { label: string; tone: 'success' | 'dang
 
 type Tab = 'invoices' | 'quotes';
 type InvoiceCurrency = 'CDF' | 'USD';
+type CrossBorderOperation = 'local' | 'export';
 type CurrencyTotals = Record<InvoiceCurrency, number>;
 
 const EXCHANGE_RATE_META_REGEX = /\[\[finexa:exchange_rate=([0-9.,]+)\]\]/i;
 const CREDIT_NOTE_FOR_META_REGEX = /\[\[finexa:credit_note_for=([^\]]+)\]\]/i;
 const CREDIT_NOTE_SOURCE_NUMBER_META_REGEX = /\[\[finexa:credit_note_source_number=([^\]]+)\]\]/i;
+const CREDIT_NOTE_KIND_META_REGEX = /\[\[finexa:credit_note_kind=([^\]]+)\]\]/i;
+const CROSS_BORDER_OPERATION_META_REGEX = /\[\[finexa:cross_border_operation=([^\]]+)\]\]/i;
 
 const parseExchangeRateValue = (value: string | number | null | undefined) => {
   const normalized = String(value ?? '').replace(',', '.').trim();
@@ -48,19 +51,29 @@ const computeUsdAmount = (amount: number, currency: InvoiceCurrency, exchangeRat
   return Number(amount || 0) / exchangeRate;
 };
 
+const readInvoiceCrossBorderOperation = (notes: string | null | undefined): CrossBorderOperation => {
+  if (!notes) return 'local';
+  const match = notes.match(CROSS_BORDER_OPERATION_META_REGEX);
+  return match?.[1]?.trim() === 'export' ? 'export' : 'local';
+};
+
 const stripInvoiceMetaNotes = (notes: string | null | undefined) => {
   if (!notes) return '';
   return notes
     .replace(EXCHANGE_RATE_META_REGEX, '')
     .replace(CREDIT_NOTE_FOR_META_REGEX, '')
     .replace(CREDIT_NOTE_SOURCE_NUMBER_META_REGEX, '')
+    .replace(CROSS_BORDER_OPERATION_META_REGEX, '')
     .replace(/\n{3,}/g, '\n\n')
     .trim();
 };
 
-const buildInvoiceNotes = (headerNote: string, notes: string, exchangeRate: number | null) => {
+const buildInvoiceNotes = (headerNote: string, notes: string, exchangeRate: number | null, crossBorderOperation: CrossBorderOperation) => {
   const visibleNotes = [headerNote.trim(), notes.trim()].filter(Boolean).join('\n\n');
-  const metaNotes = exchangeRate ? `[[finexa:exchange_rate=${exchangeRate}]]` : '';
+  const metaNotes = [
+    exchangeRate ? `[[finexa:exchange_rate=${exchangeRate}]]` : '',
+    crossBorderOperation !== 'local' ? `[[finexa:cross_border_operation=${crossBorderOperation}]]` : '',
+  ].filter(Boolean).join('\n\n');
   return [visibleNotes, metaNotes].filter(Boolean).join('\n\n') || null;
 };
 
@@ -76,11 +89,29 @@ const readInvoiceCreditNoteSourceNumber = (notes: string | null | undefined) => 
   return match?.[1]?.trim() || null;
 };
 
+type CreditNoteKind = 'return_goods' | 'service_adjustment' | 'commercial_discount' | 'financial_discount';
+
+const readInvoiceCreditNoteKind = (notes: string | null | undefined): CreditNoteKind | null => {
+  if (!notes) return null;
+  const match = notes.match(CREDIT_NOTE_KIND_META_REGEX);
+  const value = match?.[1]?.trim();
+  return value === 'return_goods' || value === 'service_adjustment' || value === 'commercial_discount' || value === 'financial_discount'
+    ? value
+    : null;
+};
+
 const isCreditNoteInvoice = (invoice: Invoice | null | undefined) => Boolean(readInvoiceCreditNoteSourceId(invoice?.notes));
 
-const buildCreditNoteNotes = (reason: string, sourceInvoice: Invoice) => {
-  const visibleNotes = [`Avoir client lie a la facture ${sourceInvoice.number}.`, reason.trim()].filter(Boolean).join('\n\n');
-  return [visibleNotes, `[[finexa:credit_note_for=${sourceInvoice.id}]]`, `[[finexa:credit_note_source_number=${sourceInvoice.number}]]`].join('\n\n');
+const getCreditNoteKindLabel = (kind: CreditNoteKind) => {
+  if (kind === 'return_goods') return 'Retour de marchandise';
+  if (kind === 'service_adjustment') return 'Ajustement de prestation';
+  if (kind === 'financial_discount') return 'Reduction financiere / escompte';
+  return 'Reduction commerciale';
+};
+
+const buildCreditNoteNotes = (reason: string, sourceInvoice: Invoice, kind: CreditNoteKind) => {
+  const visibleNotes = [`${getCreditNoteKindLabel(kind)} lie(e) a la facture ${sourceInvoice.number}.`, reason.trim()].filter(Boolean).join('\n\n');
+  return [visibleNotes, `[[finexa:credit_note_for=${sourceInvoice.id}]]`, `[[finexa:credit_note_source_number=${sourceInvoice.number}]]`, `[[finexa:credit_note_kind=${kind}]]`].join('\n\n');
 };
 
 interface DraftItem {
@@ -90,7 +121,30 @@ interface DraftItem {
   quantity: number;
   unit_price: number;
   vat_rate: number;
+  item_type: CatalogItemType;
 }
+
+type InvoiceKindPreset = 'goods' | 'services' | 'advance';
+
+const createDraftItem = (itemType: CatalogItemType = 'service'): DraftItem => ({
+  id: crypto.randomUUID(),
+  catalog_item_id: null,
+  description: '',
+  quantity: 1,
+  unit_price: 0,
+  vat_rate: RDC_STANDARD_VAT_RATE,
+  item_type: itemType,
+});
+
+const getDefaultItemTypeForPreset = (preset: InvoiceKindPreset): CatalogItemType => (preset === 'goods' ? 'product' : 'service');
+
+const resolveInvoiceKindFromPreset = (preset: InvoiceKindPreset, items: DraftItem[]): InvoiceKind => {
+  if (preset === 'advance') return 'advance';
+  const activeTypes = Array.from(new Set(items.filter((item) => item.description.trim()).map((item) => item.item_type)));
+  if (activeTypes.length === 0) return preset === 'goods' ? 'goods' : 'services';
+  if (activeTypes.length > 1) return 'mixed';
+  return activeTypes[0] === 'product' ? 'goods' : 'services';
+};
 
 const emptyTotals = (): CurrencyTotals => ({ CDF: 0, USD: 0 });
 
@@ -109,7 +163,7 @@ const formatTotals = (totals: CurrencyTotals) => {
 };
 
 const PAYMENT_METHODS = ['Virement bancaire', 'Especes', 'Mobile Money', 'Carte', 'Cheque', 'A convenir'] as const;
-const TREASURY_ACCOUNT_OPTIONS = ['Banque locale (CDF)', 'Banque en devises (USD)', 'Caisse', 'Mobile Money'] as const;
+const TREASURY_ACCOUNT_OPTIONS = ['Banque locale (CDF)', 'Banque en devises (USD)', 'Caisse', 'Mobile Money', 'Cheques remis a l encaissement'] as const;
 
 type TreasuryAccountLabel = (typeof TREASURY_ACCOUNT_OPTIONS)[number];
 
@@ -118,6 +172,28 @@ interface InvoicePaymentDraft {
   amount: number;
   paymentDate: string;
   treasuryLabel: TreasuryAccountLabel;
+  settlementExchangeRate: number | null;
+  settlementAmountUsd: number | null;
+}
+
+interface InvoicePaymentBankCreditDraft {
+  invoice: Invoice;
+  amount: number;
+  creditDate: string;
+  treasuryLabel: TreasuryAccountLabel;
+}
+
+interface InvoiceEffectDraft {
+  invoice: Invoice;
+  amount: number;
+  effectDate: string;
+}
+
+interface InvoiceEffectCollectionDraft {
+  invoice: Invoice;
+  amount: number;
+  collectionDate: string;
+  treasuryLabel: TreasuryAccountLabel;
 }
 
 interface CreditNoteDraft {
@@ -125,6 +201,7 @@ interface CreditNoteDraft {
   amount: number;
   issueDate: string;
   reason: string;
+  kind: CreditNoteKind;
 }
 
 interface CreditNoteRefundDraft {
@@ -134,14 +211,33 @@ interface CreditNoteRefundDraft {
   treasuryLabel: TreasuryAccountLabel;
 }
 
+interface AdvanceInvoiceOption {
+  invoice: Invoice;
+  collectedAmount: number;
+  appliedAmount: number;
+  availableAmount: number;
+}
+
 const getTransactionRawString = (transaction: Transaction, key: string) => {
   const raw = transaction.raw && typeof transaction.raw === 'object' ? transaction.raw as Record<string, unknown> : null;
   const value = raw?.[key];
   return typeof value === 'string' && value.trim() ? value.trim() : null;
 };
 
+const getTransactionRawNumber = (transaction: Transaction, key: string) => {
+  const raw = transaction.raw && typeof transaction.raw === 'object' ? transaction.raw as Record<string, unknown> : null;
+  const value = raw?.[key];
+  const parsed = typeof value === 'number' ? value : Number(value);
+  return Number.isFinite(parsed) ? parsed : 0;
+};
+
 const isInvoiceIssueTransaction = (transaction: Transaction) => getTransactionRawString(transaction, 'accounting_event') === 'invoice_issue';
-const isInvoicePaymentTransaction = (transaction: Transaction) => getTransactionRawString(transaction, 'accounting_event') === 'invoice_payment';
+const isInvoicePaymentTransaction = (transaction: Transaction) => ['invoice_payment', 'invoice_payment_remittance'].includes(getTransactionRawString(transaction, 'accounting_event') || '');
+const isInvoicePaymentRemittanceTransaction = (transaction: Transaction) => getTransactionRawString(transaction, 'accounting_event') === 'invoice_payment_remittance';
+const isInvoicePaymentBankCreditTransaction = (transaction: Transaction) => getTransactionRawString(transaction, 'accounting_event') === 'invoice_payment_bank_credit';
+const isInvoiceEffectIssueTransaction = (transaction: Transaction) => getTransactionRawString(transaction, 'accounting_event') === 'invoice_effect_issue';
+const isInvoiceEffectCollectionTransaction = (transaction: Transaction) => getTransactionRawString(transaction, 'accounting_event') === 'invoice_effect_collection';
+const isAdvanceApplicationTransaction = (transaction: Transaction) => getTransactionRawString(transaction, 'accounting_event') === 'advance_application';
 const isCreditNoteTransaction = (transaction: Transaction) => getTransactionRawString(transaction, 'accounting_event') === 'credit_note_issue';
 const isCreditNoteRefundTransaction = (transaction: Transaction) => getTransactionRawString(transaction, 'accounting_event') === 'credit_note_refund';
 const getTransactionInvoiceId = (transaction: Transaction) => getTransactionRawString(transaction, 'invoice_id');
@@ -153,6 +249,16 @@ const getDefaultTreasuryLabel = (paymentMethod?: string | null): TreasuryAccount
   if (normalized.includes('mobile')) return 'Mobile Money';
   if (normalized.includes('usd') || normalized.includes('dollar') || normalized.includes('devise')) return 'Banque en devises (USD)';
   return 'Banque locale (CDF)';
+};
+
+const resolveForeignSettlementDraft = (invoice: Invoice, amount: number, treasuryLabel: TreasuryAccountLabel) => {
+  if (treasuryLabel !== 'Banque en devises (USD)') return { settlementExchangeRate: null, settlementAmountUsd: null };
+  const invoiceRate = readInvoiceExchangeRate(invoice.notes);
+  if (!invoiceRate) return { settlementExchangeRate: null, settlementAmountUsd: null };
+  return {
+    settlementExchangeRate: invoiceRate,
+    settlementAmountUsd: Number(computeUsdAmount(amount, getInvoiceCurrency(invoice), invoiceRate).toFixed(2)),
+  };
 };
 
 const getInvoicePrimaryDescription = (descriptions: string[]) => descriptions.find((item) => item.trim())?.trim() || 'Vente';
@@ -189,17 +295,27 @@ const buildInvoiceIssueTransaction = (userId: string, invoice: Invoice, categori
       invoice_id: invoice.id,
       invoice_number: invoice.number,
       customer_name: invoice.customer_name,
+      invoice_kind: invoice.invoice_kind || 'services',
+      item_types: Array.from(new Set((invoice.items || []).map((item) => item.item_type || 'service'))),
+      cross_border_operation: readInvoiceCrossBorderOperation(invoice.notes),
       source: 'invoices_module',
     },
   };
 };
 
-const buildInvoicePaymentTransaction = (userId: string, invoice: Invoice, categories: Category[], descriptions: string[], amount: number, paymentDate: string, treasuryLabel: TreasuryAccountLabel): Partial<Transaction> => {
+const buildInvoicePaymentTransaction = (userId: string, invoice: Invoice, categories: Category[], descriptions: string[], amount: number, paymentDate: string, treasuryLabel: TreasuryAccountLabel, settlementExchangeRate?: number | null, settlementAmountUsd?: number | null): Partial<Transaction> => {
   const categoryId = inferInvoiceIncomeCategoryId(categories, descriptions);
+  const isChequeRemittance = treasuryLabel === 'Cheques remis a l encaissement';
+  const normalizedSettlementRate = settlementExchangeRate && settlementExchangeRate > 0 ? settlementExchangeRate : null;
+  const normalizedSettlementUsd = settlementAmountUsd && settlementAmountUsd > 0 ? settlementAmountUsd : null;
+  const bankAmountCdf = treasuryLabel === 'Banque en devises (USD)' && normalizedSettlementRate && normalizedSettlementUsd
+    ? Number((normalizedSettlementRate * normalizedSettlementUsd).toFixed(2))
+    : Number(amount || 0);
+  const fxDifferenceAmount = Number((bankAmountCdf - Number(amount || 0)).toFixed(2));
   return {
     user_id: userId,
     date: paymentDate,
-    label: `Reglement facture ${invoice.number} - ${invoice.customer_name}`,
+    label: isChequeRemittance ? `Remise a l encaissement facture ${invoice.number} - ${invoice.customer_name}` : `Reglement facture ${invoice.number} - ${invoice.customer_name}`,
     amount: Number(amount || 0),
     direction: 'in',
     category_id: categoryId,
@@ -207,18 +323,116 @@ const buildInvoicePaymentTransaction = (userId: string, invoice: Invoice, catego
     vat_amount: 0,
     vat_rate: 0,
     bank_account_label: treasuryLabel,
-    reconciliated: true,
+    reconciliated: !isChequeRemittance,
     document_id: invoice.id,
     raw: {
-      accounting_event: 'invoice_payment',
+      accounting_event: isChequeRemittance ? 'invoice_payment_remittance' : 'invoice_payment',
       invoice_id: invoice.id,
       invoice_number: invoice.number,
       customer_name: invoice.customer_name,
       treasury_label: treasuryLabel,
+      settlement_stage: isChequeRemittance ? 'pending_bank_credit' : 'banked',
+      settlement_exchange_rate: normalizedSettlementRate,
+      settlement_amount_usd: normalizedSettlementUsd,
+      bank_amount_cdf: bankAmountCdf,
+      fx_difference_amount: fxDifferenceAmount,
       source: 'invoices_module',
     },
   };
 };
+
+const buildInvoicePaymentBankCreditTransaction = (userId: string, invoice: Invoice, amount: number, creditDate: string, treasuryLabel: TreasuryAccountLabel): Partial<Transaction> => ({
+  user_id: userId,
+  date: creditDate,
+  label: `Avis de credit cheque facture ${invoice.number} - ${invoice.customer_name}`,
+  amount: Number(amount || 0),
+  direction: 'in',
+  category_id: null,
+  categorization_state: 'manual',
+  vat_amount: 0,
+  vat_rate: 0,
+  bank_account_label: treasuryLabel,
+  reconciliated: true,
+  document_id: invoice.id,
+  raw: {
+    accounting_event: 'invoice_payment_bank_credit',
+    invoice_id: invoice.id,
+    invoice_number: invoice.number,
+    customer_name: invoice.customer_name,
+    treasury_label: treasuryLabel,
+    source: 'invoices_module',
+  },
+});
+
+const buildInvoiceEffectIssueTransaction = (userId: string, invoice: Invoice, amount: number, effectDate: string): Partial<Transaction> => ({
+  user_id: userId,
+  date: effectDate,
+  label: `Creation effet de commerce facture ${invoice.number} - ${invoice.customer_name}`,
+  amount: Number(amount || 0),
+  direction: 'in',
+  category_id: null,
+  categorization_state: 'manual',
+  vat_amount: 0,
+  vat_rate: 0,
+  bank_account_label: 'Effets a recevoir',
+  reconciliated: false,
+  document_id: invoice.id,
+  raw: {
+    accounting_event: 'invoice_effect_issue',
+    invoice_id: invoice.id,
+    invoice_number: invoice.number,
+    customer_name: invoice.customer_name,
+    source: 'invoices_module',
+  },
+});
+
+const buildInvoiceEffectCollectionTransaction = (userId: string, invoice: Invoice, amount: number, collectionDate: string, treasuryLabel: TreasuryAccountLabel): Partial<Transaction> => ({
+  user_id: userId,
+  date: collectionDate,
+  label: `Encaissement effet de commerce facture ${invoice.number} - ${invoice.customer_name}`,
+  amount: Number(amount || 0),
+  direction: 'in',
+  category_id: null,
+  categorization_state: 'manual',
+  vat_amount: 0,
+  vat_rate: 0,
+  bank_account_label: treasuryLabel,
+  reconciliated: true,
+  document_id: invoice.id,
+  raw: {
+    accounting_event: 'invoice_effect_collection',
+    invoice_id: invoice.id,
+    invoice_number: invoice.number,
+    customer_name: invoice.customer_name,
+    treasury_label: treasuryLabel,
+    source: 'invoices_module',
+  },
+});
+
+const buildAdvanceApplicationTransaction = (userId: string, invoice: Invoice, sourceAdvance: Invoice, amount: number): Partial<Transaction> => ({
+  user_id: userId,
+  date: invoice.issue_date,
+  label: `Imputation acompte ${sourceAdvance.number} sur facture ${invoice.number} - ${invoice.customer_name}`,
+  amount: Number(amount || 0),
+  direction: 'in',
+  category_id: null,
+  categorization_state: 'manual',
+  vat_amount: 0,
+  vat_rate: 0,
+  bank_account_label: null,
+  reconciliated: false,
+  document_id: invoice.id,
+  raw: {
+    accounting_event: 'advance_application',
+    invoice_id: invoice.id,
+    invoice_number: invoice.number,
+    source_invoice_id: sourceAdvance.id,
+    source_invoice_number: sourceAdvance.number,
+    customer_name: invoice.customer_name,
+    advance_applied_amount: Number(amount || 0),
+    source: 'invoices_module',
+  },
+});
 
 const buildCreditNoteTransaction = (userId: string, creditNote: Invoice, sourceInvoice: Invoice, categories: Category[], descriptions: string[]): Partial<Transaction> => {
   const primaryDescription = getInvoicePrimaryDescription(descriptions);
@@ -240,9 +454,13 @@ const buildCreditNoteTransaction = (userId: string, creditNote: Invoice, sourceI
       accounting_event: 'credit_note_issue',
       invoice_id: creditNote.id,
       invoice_number: creditNote.number,
+      invoice_kind: 'credit_note',
+      credit_note_kind: readInvoiceCreditNoteKind(creditNote.notes) || 'commercial_discount',
       source_invoice_id: sourceInvoice.id,
       source_invoice_number: sourceInvoice.number,
+      source_invoice_kind: sourceInvoice.invoice_kind || 'services',
       customer_name: sourceInvoice.customer_name,
+      item_types: Array.from(new Set((creditNote.items || []).map((item) => item.item_type || 'service'))),
       source: 'invoices_module',
     },
   };
@@ -287,6 +505,9 @@ export function InvoicesPage() {
   const [createOpen, setCreateOpen] = useState(false);
   const [viewing, setViewing] = useState<Invoice | null>(null);
   const [paymentDraft, setPaymentDraft] = useState<InvoicePaymentDraft | null>(null);
+  const [paymentBankCreditDraft, setPaymentBankCreditDraft] = useState<InvoicePaymentBankCreditDraft | null>(null);
+  const [effectDraft, setEffectDraft] = useState<InvoiceEffectDraft | null>(null);
+  const [effectCollectionDraft, setEffectCollectionDraft] = useState<InvoiceEffectCollectionDraft | null>(null);
   const [creditNoteDraft, setCreditNoteDraft] = useState<CreditNoteDraft | null>(null);
   const [creditNoteRefundDraft, setCreditNoteRefundDraft] = useState<CreditNoteRefundDraft | null>(null);
   const [page, setPage] = useState(1);
@@ -317,11 +538,69 @@ export function InvoicesPage() {
     const map = new Map<string, number>();
     for (const transaction of transactions) {
       const invoiceId = getTransactionInvoiceId(transaction);
-      if (!invoiceId || !isInvoicePaymentTransaction(transaction)) continue;
+      if (!invoiceId || (!isInvoicePaymentTransaction(transaction) && !isInvoiceEffectIssueTransaction(transaction))) continue;
       map.set(invoiceId, (map.get(invoiceId) || 0) + Number(transaction.amount || 0));
     }
     return map;
   }, [transactions]);
+
+  const remittedByInvoice = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const transaction of transactions) {
+      const invoiceId = getTransactionInvoiceId(transaction);
+      if (!invoiceId || !isInvoicePaymentRemittanceTransaction(transaction)) continue;
+      map.set(invoiceId, (map.get(invoiceId) || 0) + Number(transaction.amount || 0));
+    }
+    return map;
+  }, [transactions]);
+
+  const bankCreditedByInvoice = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const transaction of transactions) {
+      const invoiceId = getTransactionInvoiceId(transaction);
+      if (!invoiceId || !isInvoicePaymentBankCreditTransaction(transaction)) continue;
+      map.set(invoiceId, (map.get(invoiceId) || 0) + Number(transaction.amount || 0));
+    }
+    return map;
+  }, [transactions]);
+
+  const pendingChequeRemittanceByInvoice = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const invoice of list) {
+      const pendingAmount = Math.max(0, (remittedByInvoice.get(invoice.id) || 0) - (bankCreditedByInvoice.get(invoice.id) || 0));
+      if (pendingAmount > 0.01) map.set(invoice.id, pendingAmount);
+    }
+    return map;
+  }, [bankCreditedByInvoice, list, remittedByInvoice]);
+
+  const effectIssuedByInvoice = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const transaction of transactions) {
+      const invoiceId = getTransactionInvoiceId(transaction);
+      if (!invoiceId || !isInvoiceEffectIssueTransaction(transaction)) continue;
+      map.set(invoiceId, (map.get(invoiceId) || 0) + Number(transaction.amount || 0));
+    }
+    return map;
+  }, [transactions]);
+
+  const effectCollectedByInvoice = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const transaction of transactions) {
+      const invoiceId = getTransactionInvoiceId(transaction);
+      if (!invoiceId || !isInvoiceEffectCollectionTransaction(transaction)) continue;
+      map.set(invoiceId, (map.get(invoiceId) || 0) + Number(transaction.amount || 0));
+    }
+    return map;
+  }, [transactions]);
+
+  const pendingEffectsByInvoice = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const invoice of list) {
+      const pendingAmount = Math.max(0, (effectIssuedByInvoice.get(invoice.id) || 0) - (effectCollectedByInvoice.get(invoice.id) || 0));
+      if (pendingAmount > 0.01) map.set(invoice.id, pendingAmount);
+    }
+    return map;
+  }, [effectCollectedByInvoice, effectIssuedByInvoice, list]);
 
   const creditedByInvoice = useMemo(() => {
     const map = new Map<string, number>();
@@ -332,6 +611,17 @@ export function InvoicesPage() {
     }
     return map;
   }, [transactions]);
+
+  const advanceAppliedByInvoice = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const transaction of transactions) {
+      const invoiceId = getTransactionInvoiceId(transaction);
+      if (!invoiceId || !isAdvanceApplicationTransaction(transaction)) continue;
+      map.set(invoiceId, (map.get(invoiceId) || 0) + Number(transaction.amount || 0));
+    }
+    return map;
+  }, [transactions]);
+
 
   const refundedByCreditNote = useMemo(() => {
     const map = new Map<string, number>();
@@ -353,14 +643,15 @@ export function InvoicesPage() {
       const currency = getInvoiceCurrency(invoice);
       const settledAmount = settledByInvoice.get(invoice.id) || 0;
       const creditedAmount = creditedByInvoice.get(invoice.id) || 0;
-      const residualAmount = Math.max(0, Number(invoice.total || 0) - settledAmount - creditedAmount);
+      const advanceAppliedAmount = advanceAppliedByInvoice.get(invoice.id) || 0;
+      const residualAmount = Math.max(0, Number(invoice.total || 0) - settledAmount - creditedAmount - advanceAppliedAmount);
       if (settledAmount > 0) addToTotals(paid, currency, Math.min(settledAmount, Number(invoice.total || 0)));
       if (residualAmount <= 0.01) continue;
       if (effectiveStatus === 'overdue') addToTotals(overdue, currency, residualAmount);
       else if (effectiveStatus === 'sent' || effectiveStatus === 'paid') addToTotals(pending, currency, residualAmount);
     }
     return { paid, pending, overdue };
-  }, [creditedByInvoice, list, settledByInvoice]);
+  }, [advanceAppliedByInvoice, creditedByInvoice, list, settledByInvoice]);
 
   const normalizationWorkflow = useMemo(() => {
     const standard = list.filter((invoice) => !invoice.is_quote && getInvoiceNormalizationStatus(invoice, profile) === 'standard').length;
@@ -414,7 +705,7 @@ export function InvoicesPage() {
       }
       if (sentCount > 0) {
         reload();
-        toast({ kind: 'info', message: `${sentCount} relance(s) automatique(s) envoyÃ©e(s).` });
+        toast({ kind: 'info', message: `${sentCount} relance(s) automatique(s) envoyÃƒÂ©e(s).` });
       }
     };
     void run();
@@ -429,16 +720,20 @@ export function InvoicesPage() {
   };
 
   const openPaymentModal = (invoice: Invoice) => {
-    const residualAmount = Math.max(0, Number(invoice.total || 0) - (settledByInvoice.get(invoice.id) || 0) - (creditedByInvoice.get(invoice.id) || 0));
+    const residualAmount = Math.max(0, Number(invoice.total || 0) - (settledByInvoice.get(invoice.id) || 0) - (creditedByInvoice.get(invoice.id) || 0) - (advanceAppliedByInvoice.get(invoice.id) || 0));
     if (residualAmount <= 0.01) {
       toast({ kind: 'info', message: 'Cette facture est deja totalement reglee.' });
       return;
     }
+    const defaultTreasuryLabel = getDefaultTreasuryLabel(invoice.payment_method);
+    const foreignDraft = resolveForeignSettlementDraft(invoice, Number(residualAmount.toFixed(2)), defaultTreasuryLabel);
     setPaymentDraft({
       invoice,
       amount: Number(residualAmount.toFixed(2)),
       paymentDate: new Date().toISOString().slice(0, 10),
-      treasuryLabel: getDefaultTreasuryLabel(invoice.payment_method),
+      treasuryLabel: defaultTreasuryLabel,
+      settlementExchangeRate: foreignDraft.settlementExchangeRate,
+      settlementAmountUsd: foreignDraft.settlementAmountUsd,
     });
   };
 
@@ -448,7 +743,8 @@ export function InvoicesPage() {
     const invoice = paymentDraft.invoice;
     const settledAmount = settledByInvoice.get(invoice.id) || 0;
     const creditedAmount = creditedByInvoice.get(invoice.id) || 0;
-    const residualAmount = Math.max(0, Number(invoice.total || 0) - settledAmount - creditedAmount);
+    const advanceAppliedAmount = advanceAppliedByInvoice.get(invoice.id) || 0;
+    const residualAmount = Math.max(0, Number(invoice.total || 0) - settledAmount - creditedAmount - advanceAppliedAmount);
     const paymentAmount = Number(paymentDraft.amount || 0);
 
     if (paymentAmount <= 0) {
@@ -471,11 +767,13 @@ export function InvoicesPage() {
           paymentAmount,
           paymentDraft.paymentDate,
           paymentDraft.treasuryLabel,
+          paymentDraft.settlementExchangeRate,
+          paymentDraft.settlementAmountUsd,
         ),
       ]);
 
       const newSettledAmount = settledAmount + paymentAmount;
-      const isFullyPaid = Math.max(0, Number(invoice.total || 0) - newSettledAmount - creditedAmount) <= 0.01;
+      const isFullyPaid = Math.max(0, Number(invoice.total || 0) - newSettledAmount - creditedAmount - advanceAppliedAmount) <= 0.01;
       await updateInvoice(invoice.id, {
         status: isFullyPaid ? 'paid' : 'sent',
         paid_at: isFullyPaid ? new Date().toISOString() : null,
@@ -485,6 +783,8 @@ export function InvoicesPage() {
         total: invoice.total,
         amount_paid: paymentAmount,
         settlement_account: paymentDraft.treasuryLabel,
+        settlement_exchange_rate: paymentDraft.settlementExchangeRate,
+        settlement_amount_usd: paymentDraft.settlementAmountUsd,
       });
       await Promise.all([reload(), reloadTransactions()]);
       setPaymentDraft(null);
@@ -492,6 +792,150 @@ export function InvoicesPage() {
         kind: 'success',
         message: isFullyPaid ? 'Paiement comptabilise, facture totalement reglee.' : 'Paiement partiel comptabilise et lettrage mis a jour.',
       });
+    } catch (error) {
+      toast({ kind: 'error', message: error instanceof Error ? error.message : 'Erreur' });
+    }
+  };
+
+  const openPaymentBankCreditModal = (invoice: Invoice) => {
+    const pendingAmount = pendingChequeRemittanceByInvoice.get(invoice.id) || 0;
+    if (pendingAmount <= 0.01) {
+      toast({ kind: 'info', message: 'Aucune remise de cheque en attente de credit bancaire pour cette facture.' });
+      return;
+    }
+    setPaymentBankCreditDraft({
+      invoice,
+      amount: Number(pendingAmount.toFixed(2)),
+      creditDate: new Date().toISOString().slice(0, 10),
+      treasuryLabel: 'Banque locale (CDF)',
+    });
+  };
+
+  const recordPaymentBankCredit = async () => {
+    if (!user || !paymentBankCreditDraft) return;
+
+    const invoice = paymentBankCreditDraft.invoice;
+    const pendingAmount = pendingChequeRemittanceByInvoice.get(invoice.id) || 0;
+    const amount = Number(paymentBankCreditDraft.amount || 0);
+
+    if (amount <= 0) {
+      toast({ kind: 'error', message: 'Le montant credite doit etre superieur a zero.' });
+      return;
+    }
+    if (amount - pendingAmount > 0.01) {
+      toast({ kind: 'error', message: 'Le montant credite depasse les cheques remis encore en attente.' });
+      return;
+    }
+    if (paymentBankCreditDraft.treasuryLabel === 'Cheques remis a l encaissement') {
+      toast({ kind: 'error', message: 'Selectionnez une vraie banque ou un compte final pour l avis de credit.' });
+      return;
+    }
+
+    try {
+      await insertTransactions([
+        buildInvoicePaymentBankCreditTransaction(user.id, invoice, amount, paymentBankCreditDraft.creditDate, paymentBankCreditDraft.treasuryLabel),
+      ]);
+      await logAction('invoice.cheque_credit', 'invoice', invoice.id, {
+        number: invoice.number,
+        amount_credited: amount,
+        treasury_account: paymentBankCreditDraft.treasuryLabel,
+      });
+      await Promise.all([reload(), reloadTransactions()]);
+      setPaymentBankCreditDraft(null);
+      toast({ kind: 'success', message: 'Avis de credit bancaire du cheque comptabilise.' });
+    } catch (error) {
+      toast({ kind: 'error', message: error instanceof Error ? error.message : 'Erreur' });
+    }
+  };
+
+  const openEffectModal = (invoice: Invoice) => {
+    const residualAmount = Math.max(0, Number(invoice.total || 0) - (settledByInvoice.get(invoice.id) || 0) - (creditedByInvoice.get(invoice.id) || 0) - (advanceAppliedByInvoice.get(invoice.id) || 0));
+    if (residualAmount <= 0.01) {
+      toast({ kind: 'info', message: 'Cette facture est deja totalement couverte.' });
+      return;
+    }
+    setEffectDraft({
+      invoice,
+      amount: Number(residualAmount.toFixed(2)),
+      effectDate: new Date().toISOString().slice(0, 10),
+    });
+  };
+
+  const recordEffectIssue = async () => {
+    if (!user || !effectDraft) return;
+    const invoice = effectDraft.invoice;
+    const settledAmount = settledByInvoice.get(invoice.id) || 0;
+    const creditedAmount = creditedByInvoice.get(invoice.id) || 0;
+    const advanceAppliedAmount = advanceAppliedByInvoice.get(invoice.id) || 0;
+    const residualAmount = Math.max(0, Number(invoice.total || 0) - settledAmount - creditedAmount - advanceAppliedAmount);
+    const amount = Number(effectDraft.amount || 0);
+
+    if (amount <= 0) {
+      toast({ kind: 'error', message: 'Le montant de l effet doit etre superieur a zero.' });
+      return;
+    }
+    if (amount - residualAmount > 0.01) {
+      toast({ kind: 'error', message: 'Le montant de l effet depasse le solde restant de la facture.' });
+      return;
+    }
+
+    try {
+      await ensureInvoiceIssueTransaction(invoice);
+      await insertTransactions([buildInvoiceEffectIssueTransaction(user.id, invoice, amount, effectDraft.effectDate)]);
+      const newSettledAmount = settledAmount + amount;
+      const isFullyCovered = Math.max(0, Number(invoice.total || 0) - newSettledAmount - creditedAmount - advanceAppliedAmount) <= 0.01;
+      await updateInvoice(invoice.id, {
+        status: isFullyCovered ? 'paid' : 'sent',
+        paid_at: null,
+      });
+      await logAction('invoice.effect_issue', 'invoice', invoice.id, { number: invoice.number, amount, instrument: 'effet_de_commerce' });
+      await Promise.all([reload(), reloadTransactions()]);
+      setEffectDraft(null);
+      toast({ kind: 'success', message: 'Effet de commerce cree et comptabilise.' });
+    } catch (error) {
+      toast({ kind: 'error', message: error instanceof Error ? error.message : 'Erreur' });
+    }
+  };
+
+  const openEffectCollectionModal = (invoice: Invoice) => {
+    const pendingAmount = pendingEffectsByInvoice.get(invoice.id) || 0;
+    if (pendingAmount <= 0.01) {
+      toast({ kind: 'info', message: 'Aucun effet de commerce en attente d encaissement pour cette facture.' });
+      return;
+    }
+    setEffectCollectionDraft({
+      invoice,
+      amount: Number(pendingAmount.toFixed(2)),
+      collectionDate: new Date().toISOString().slice(0, 10),
+      treasuryLabel: 'Banque locale (CDF)',
+    });
+  };
+
+  const recordEffectCollection = async () => {
+    if (!user || !effectCollectionDraft) return;
+    const invoice = effectCollectionDraft.invoice;
+    const pendingAmount = pendingEffectsByInvoice.get(invoice.id) || 0;
+    const amount = Number(effectCollectionDraft.amount || 0);
+
+    if (amount <= 0) {
+      toast({ kind: 'error', message: 'Le montant encaisse doit etre superieur a zero.' });
+      return;
+    }
+    if (amount - pendingAmount > 0.01) {
+      toast({ kind: 'error', message: 'Le montant encaisse depasse les effets encore en portefeuille.' });
+      return;
+    }
+    if (effectCollectionDraft.treasuryLabel === 'Cheques remis a l encaissement') {
+      toast({ kind: 'error', message: 'Selectionnez une banque finale pour l encaissement de l effet.' });
+      return;
+    }
+
+    try {
+      await insertTransactions([buildInvoiceEffectCollectionTransaction(user.id, invoice, amount, effectCollectionDraft.collectionDate, effectCollectionDraft.treasuryLabel)]);
+      await logAction('invoice.effect_collection', 'invoice', invoice.id, { number: invoice.number, amount_collected: amount, treasury_account: effectCollectionDraft.treasuryLabel });
+      await Promise.all([reload(), reloadTransactions()]);
+      setEffectCollectionDraft(null);
+      toast({ kind: 'success', message: 'Encaissement de l effet de commerce comptabilise.' });
     } catch (error) {
       toast({ kind: 'error', message: error instanceof Error ? error.message : 'Erreur' });
     }
@@ -577,6 +1021,7 @@ export function InvoicesPage() {
       amount: Number(remainingCreditCapacity.toFixed(2)),
       issueDate: new Date().toISOString().slice(0, 10),
       reason: '',
+      kind: invoice.invoice_kind === 'goods' ? 'return_goods' : 'service_adjustment',
     });
   };
 
@@ -607,7 +1052,7 @@ export function InvoicesPage() {
       const subtotal = Math.max(0, Number((amount - vatTotal).toFixed(2)));
       const preparedItems = [{
         catalog_item_id: null,
-        description: `Avoir sur facture ${sourceInvoice.number} - ${creditNoteDraft.reason.trim() || 'Regularisation commerciale'}`,
+        description: `${getCreditNoteKindLabel(creditNoteDraft.kind)} sur facture ${sourceInvoice.number} - ${creditNoteDraft.reason.trim() || 'Regularisation'}`,
         quantity: 1,
         unit_price: amount,
         vat_rate: baseSubtotal > 0 ? Number(((baseVat / Math.max(baseSubtotal, 1)) * 100).toFixed(2)) : 0,
@@ -631,9 +1076,11 @@ export function InvoicesPage() {
         total: amount,
         currency: sourceInvoice.currency || 'CDF',
         payment_method: sourceInvoice.payment_method || null,
+        invoice_kind: 'credit_note',
+        advance_source_invoice_id: sourceInvoice.invoice_kind === 'advance' ? sourceInvoice.id : null,
         other_taxes_amount: 0,
         non_taxable_amount: 0,
-        notes: buildCreditNoteNotes(creditNoteDraft.reason, sourceInvoice),
+        notes: buildCreditNoteNotes(creditNoteDraft.reason, sourceInvoice, creditNoteDraft.kind),
         is_quote: false,
         normalization_status: 'standard',
       }, preparedItems);
@@ -649,6 +1096,7 @@ export function InvoicesPage() {
             unit_price: item.unit_price,
             vat_rate: item.vat_rate,
             line_total: item.line_total,
+            item_type: sourceInvoice.invoice_kind === 'goods' ? 'product' : 'service',
             created_at: creditNoteInvoice.created_at,
           })) },
           sourceInvoice,
@@ -731,9 +1179,9 @@ export function InvoicesPage() {
       await logAction('invoice.remind', 'invoice', invoice.id, { number: invoice.number, reminder_count: reminderCount });
       if (invoice.customer_email) {
         const result = await sendReminderEmail({ ...invoice, reminder_count: reminderCount }, profile, reminderCount);
-        toast(result.success ? { kind: 'success', message: `Relance ${reminderCount} envoyÃ©e Ã  ${invoice.customer_email}.` } : { kind: 'error', message: `Relance enregistrÃ©e mais e-mail non dÃ©livrÃ© : ${result.error}` });
+        toast(result.success ? { kind: 'success', message: `Relance ${reminderCount} envoyÃƒÂ©e ÃƒÂ  ${invoice.customer_email}.` } : { kind: 'error', message: `Relance enregistrÃƒÂ©e mais e-mail non dÃƒÂ©livrÃƒÂ© : ${result.error}` });
       } else {
-        toast({ kind: 'success', message: `Relance ${reminderCount} enregistrÃ©e.` });
+        toast({ kind: 'success', message: `Relance ${reminderCount} enregistrÃƒÂ©e.` });
       }
       reload();
     } catch (error) {
@@ -839,23 +1287,47 @@ export function InvoicesPage() {
         const settledAmount = settledByInvoice.get(invoice.id) || 0;
         const creditedAmount = creditedByInvoice.get(invoice.id) || 0;
         const refundedAmount = refundedByCreditNote.get(invoice.id) || 0;
+        const advanceAppliedAmount = advanceAppliedByInvoice.get(invoice.id) || 0;
+        const pendingChequeRemittanceAmount = pendingChequeRemittanceByInvoice.get(invoice.id) || 0;
+        const pendingEffectAmount = pendingEffectsByInvoice.get(invoice.id) || 0;
         const residualAmount = isCreditNote
           ? Math.max(0, Number(invoice.total || 0) - refundedAmount)
-          : Math.max(0, Number(invoice.total || 0) - settledAmount - creditedAmount);
+          : Math.max(0, Number(invoice.total || 0) - settledAmount - creditedAmount - advanceAppliedAmount);
         const refundableAmount = Math.max(0, Number(invoice.total || 0) - refundedAmount);
 
         const meta = statusMeta[effectiveStatus];
-        return <tr key={invoice.id} className="hover:bg-ink-50/60 transition"><td className="px-4 py-3 font-mono text-xs text-ink-600">{invoice.number || '-'}</td><td className="px-4 py-3"><div className="flex items-center gap-2.5"><div className="grid h-8 w-8 place-items-center rounded-lg bg-brand-100 text-xs font-semibold text-brand-700">{initials(invoice.customer_name)}</div><div><p className="font-medium text-ink-900">{invoice.customer_name}</p>{invoice.customer_email && <p className="text-xs text-ink-500">{invoice.customer_email}</p>}</div></div></td><td className="px-4 py-3 whitespace-nowrap text-ink-600">{fmtDate(invoice.issue_date)}</td><td className="px-4 py-3 whitespace-nowrap text-ink-600">{fmtDate(invoice.due_date)}</td><td className="px-4 py-3 text-right text-ink-900"><p className="font-semibold">{fmtMoney(invoice.total, invoiceCurrency)}</p>{invoiceUsdAmount ? <><p className="text-xs text-ink-500">{fmtMoney(invoiceUsdAmount, 'USD')}</p><p className="text-[11px] text-ink-400">Taux: 1 USD = {invoiceExchangeRate?.toLocaleString('fr-CD')} CDF</p></> : null}{!invoice.is_quote && <><p className="mt-1 text-xs text-ink-500">Encaisse: {fmtMoney(Math.min(settledAmount, Number(invoice.total || 0)), invoiceCurrency)}</p><p className="text-xs font-medium text-ink-700">Reste: {fmtMoney(residualAmount, invoiceCurrency)}</p></>}</td><td className="px-4 py-3"><div className="flex flex-col items-start gap-1"><Badge tone={meta.tone}><meta.icon size={12} /> {meta.label}</Badge>{isInvoicesTab && invoice.reminder_count > 0 && <span className="flex items-center gap-1 text-xs text-ink-500"><Bell size={11} /> {invoice.reminder_count} relance(s)</span>}{!invoice.is_quote && <span className="text-xs text-ink-500">{getInvoiceNormalizationLabel(normalizationStatus)}</span>}</div></td><td className="px-4 py-3"><div className="flex items-center justify-end gap-1"><button onClick={() => setViewing(invoice)} className="rounded-lg p-1.5 text-ink-500 hover:bg-ink-100 hover:text-ink-900" title="Apercu"><Eye size={16} /></button>{!invoice.is_quote && normalizationStatus !== 'normalized' && <button onClick={() => normalizeInvoice(invoice)} className="rounded-lg p-1.5 text-accent-700 hover:bg-accent-50" title="Normaliser"><FileSignature size={16} /></button>}{effectiveStatus === 'draft' && <button onClick={() => sendInvoice(invoice)} className="rounded-lg p-1.5 text-brand-600 hover:bg-brand-50" title="Envoyer"><Send size={16} /></button>}{!invoice.is_quote && !isCreditNoteInvoice(invoice) && <button onClick={() => openCreditNoteModal(invoice)} className="rounded-lg p-1.5 text-accent-700 hover:bg-accent-50" title="Creer un avoir"><FileText size={16} /></button>}{isCreditNote && refundableAmount > 0.01 && <button onClick={() => openCreditNoteRefundModal(invoice)} className="rounded-lg p-1.5 text-success-600 hover:bg-success-50" title="Rembourser l avoir"><CheckCircle2 size={16} /></button>}{!invoice.is_quote && (effectiveStatus === 'sent' || effectiveStatus === 'overdue' || residualAmount > 0.01) && <><button onClick={() => sendReminder(invoice)} className="rounded-lg p-1.5 text-warning-600 hover:bg-warning-50" title="Relancer"><Bell size={16} /></button><button onClick={() => openPaymentModal(invoice)} className="rounded-lg p-1.5 text-success-600 hover:bg-success-50" title="Enregistrer un paiement"><CheckCircle2 size={16} /></button></>}{invoice.is_quote && effectiveStatus === 'sent' && <button onClick={() => convertQuote(invoice)} className="rounded-lg p-1.5 text-brand-600 hover:bg-brand-50" title="Convertir en facture"><FileText size={16} /></button>}<button onClick={() => removeInvoice(invoice)} className="rounded-lg p-1.5 text-ink-400 hover:bg-danger-50 hover:text-danger-600" title="Supprimer"><Trash2 size={16} /></button></div></td></tr>;
+        return <tr key={invoice.id} className="hover:bg-ink-50/60 transition"><td className="px-4 py-3 font-mono text-xs text-ink-600">{invoice.number || '-'}</td><td className="px-4 py-3"><div className="flex items-center gap-2.5"><div className="grid h-8 w-8 place-items-center rounded-lg bg-brand-100 text-xs font-semibold text-brand-700">{initials(invoice.customer_name)}</div><div><p className="font-medium text-ink-900">{invoice.customer_name}</p>{invoice.customer_email && <p className="text-xs text-ink-500">{invoice.customer_email}</p>}</div></div></td><td className="px-4 py-3 whitespace-nowrap text-ink-600">{fmtDate(invoice.issue_date)}</td><td className="px-4 py-3 whitespace-nowrap text-ink-600">{fmtDate(invoice.due_date)}</td><td className="px-4 py-3 text-right text-ink-900"><p className="font-semibold">{fmtMoney(invoice.total, invoiceCurrency)}</p>{invoiceUsdAmount ? <><p className="text-xs text-ink-500">{fmtMoney(invoiceUsdAmount, 'USD')}</p><p className="text-[11px] text-ink-400">Taux: 1 USD = {invoiceExchangeRate?.toLocaleString('fr-CD')} CDF</p></> : null}{!invoice.is_quote && <><p className="mt-1 text-xs text-ink-500">Encaisse: {fmtMoney(Math.min(settledAmount, Number(invoice.total || 0)), invoiceCurrency)}</p>{advanceAppliedAmount > 0.01 ? <p className="text-xs text-ink-500">Acompte impute: {fmtMoney(advanceAppliedAmount, invoiceCurrency)}</p> : null}{pendingChequeRemittanceAmount > 0.01 ? <p className="text-xs text-warning-700">Cheque remis en attente: {fmtMoney(pendingChequeRemittanceAmount, invoiceCurrency)}</p> : null}{pendingEffectAmount > 0.01 ? <p className="text-xs text-brand-700">Effet en portefeuille: {fmtMoney(pendingEffectAmount, invoiceCurrency)}</p> : null}<p className="text-xs font-medium text-ink-700">Reste: {fmtMoney(residualAmount, invoiceCurrency)}</p></>}</td><td className="px-4 py-3"><div className="flex flex-col items-start gap-1"><Badge tone={meta.tone}><meta.icon size={12} /> {meta.label}</Badge>{isInvoicesTab && invoice.reminder_count > 0 && <span className="flex items-center gap-1 text-xs text-ink-500"><Bell size={11} /> {invoice.reminder_count} relance(s)</span>}{!invoice.is_quote && <span className="text-xs text-ink-500">{getInvoiceNormalizationLabel(normalizationStatus)}</span>}</div></td><td className="px-4 py-3"><div className="flex items-center justify-end gap-1"><button onClick={() => setViewing(invoice)} className="rounded-lg p-1.5 text-ink-500 hover:bg-ink-100 hover:text-ink-900" title="Apercu"><Eye size={16} /></button>{!invoice.is_quote && normalizationStatus !== 'normalized' && <button onClick={() => normalizeInvoice(invoice)} className="rounded-lg p-1.5 text-accent-700 hover:bg-accent-50" title="Normaliser"><FileSignature size={16} /></button>}{effectiveStatus === 'draft' && <button onClick={() => sendInvoice(invoice)} className="rounded-lg p-1.5 text-brand-600 hover:bg-brand-50" title="Envoyer"><Send size={16} /></button>}{!invoice.is_quote && !isCreditNoteInvoice(invoice) && <button onClick={() => openCreditNoteModal(invoice)} className="rounded-lg p-1.5 text-accent-700 hover:bg-accent-50" title="Creer un avoir"><FileText size={16} /></button>}{isCreditNote && refundableAmount > 0.01 && <button onClick={() => openCreditNoteRefundModal(invoice)} className="rounded-lg p-1.5 text-success-600 hover:bg-success-50" title="Rembourser l avoir"><CheckCircle2 size={16} /></button>}{pendingChequeRemittanceAmount > 0.01 && <button onClick={() => openPaymentBankCreditModal(invoice)} className="rounded-lg p-1.5 text-brand-700 hover:bg-brand-50" title="Constater l avis de credit"><Download size={16} /></button>}{pendingEffectAmount > 0.01 && <button onClick={() => openEffectCollectionModal(invoice)} className="rounded-lg p-1.5 text-brand-700 hover:bg-brand-50" title="Encaisser l effet"><Download size={16} /></button>}{!invoice.is_quote && (effectiveStatus === 'sent' || effectiveStatus === 'overdue' || residualAmount > 0.01) && <><button onClick={() => sendReminder(invoice)} className="rounded-lg p-1.5 text-warning-600 hover:bg-warning-50" title="Relancer"><Bell size={16} /></button><button onClick={() => openPaymentModal(invoice)} className="rounded-lg p-1.5 text-success-600 hover:bg-success-50" title="Enregistrer un paiement"><CheckCircle2 size={16} /></button><button onClick={() => openEffectModal(invoice)} className="rounded-lg p-1.5 text-accent-700 hover:bg-accent-50" title="Transformer en effet de commerce"><FileSignature size={16} /></button></>}{invoice.is_quote && effectiveStatus === 'sent' && <button onClick={() => convertQuote(invoice)} className="rounded-lg p-1.5 text-brand-600 hover:bg-brand-50" title="Convertir en facture"><FileText size={16} /></button>}<button onClick={() => removeInvoice(invoice)} className="rounded-lg p-1.5 text-ink-400 hover:bg-danger-50 hover:text-danger-600" title="Supprimer"><Trash2 size={16} /></button></div></td></tr>;
       })}
       </tbody></table></div><Pagination page={page} totalPages={totalPages} onPageChange={setPage} total={filtered.length} pageSize={pageSize} /></div>
 
-      <InvoiceEditor open={createOpen} onClose={() => setCreateOpen(false)} number={nextNumber} isQuote={!isInvoicesTab} profile={profile} userEmail={user?.email || ''} customers={customers} catalogItems={catalogItems} categories={categories} onSaved={() => { reload(); reloadCustomers(); reloadCatalogItems(); reloadTransactions(); setCreateOpen(false); }} />
+      <InvoiceEditor open={createOpen} onClose={() => setCreateOpen(false)} number={nextNumber} isQuote={!isInvoicesTab} profile={profile} userEmail={user?.email || ''} customers={customers} catalogItems={catalogItems} categories={categories} invoices={invoices} transactions={transactions} onSaved={() => { reload(); reloadCustomers(); reloadCatalogItems(); reloadTransactions(); setCreateOpen(false); }} />
       <InvoicePaymentModal
         draft={paymentDraft}
-        settledAmount={paymentDraft ? (settledByInvoice.get(paymentDraft.invoice.id) || 0) : 0}
+        settledAmount={paymentDraft ? ((settledByInvoice.get(paymentDraft.invoice.id) || 0) + (advanceAppliedByInvoice.get(paymentDraft.invoice.id) || 0) + (creditedByInvoice.get(paymentDraft.invoice.id) || 0)) : 0}
         onClose={() => setPaymentDraft(null)}
         onSave={recordInvoicePayment}
         onChange={setPaymentDraft}
+      />
+      <InvoiceEffectModal
+        draft={effectDraft}
+        settledAmount={effectDraft ? ((settledByInvoice.get(effectDraft.invoice.id) || 0) + (advanceAppliedByInvoice.get(effectDraft.invoice.id) || 0) + (creditedByInvoice.get(effectDraft.invoice.id) || 0)) : 0}
+        onClose={() => setEffectDraft(null)}
+        onSave={recordEffectIssue}
+        onChange={setEffectDraft}
+      />
+      <InvoiceEffectCollectionModal
+        draft={effectCollectionDraft}
+        pendingAmount={effectCollectionDraft ? (pendingEffectsByInvoice.get(effectCollectionDraft.invoice.id) || 0) : 0}
+        onClose={() => setEffectCollectionDraft(null)}
+        onSave={recordEffectCollection}
+        onChange={setEffectCollectionDraft}
+      />
+      <InvoicePaymentBankCreditModal
+        draft={paymentBankCreditDraft}
+        pendingAmount={paymentBankCreditDraft ? (pendingChequeRemittanceByInvoice.get(paymentBankCreditDraft.invoice.id) || 0) : 0}
+        onClose={() => setPaymentBankCreditDraft(null)}
+        onSave={recordPaymentBankCredit}
+        onChange={setPaymentBankCreditDraft}
       />
       <InvoiceCreditNoteModal
         draft={creditNoteDraft}
@@ -886,6 +1358,8 @@ function InvoiceEditor({
   customers,
   catalogItems,
   categories,
+  invoices,
+  transactions,
   onSaved,
 }: {
   open: boolean;
@@ -897,6 +1371,8 @@ function InvoiceEditor({
   customers: Customer[];
   catalogItems: CatalogItem[];
   categories: Category[];
+  invoices: Invoice[];
+  transactions: Transaction[];
   onSaved: () => void;
 }) {
   const { user } = useAuth();
@@ -911,14 +1387,18 @@ function InvoiceEditor({
   const [issueDate, setIssueDate] = useState(new Date().toISOString().slice(0, 10));
   const [dueDate, setDueDate] = useState(new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10));
   const [paymentMethod, setPaymentMethod] = useState<(typeof PAYMENT_METHODS)[number]>('Virement bancaire');
+  const [invoiceKindPreset, setInvoiceKindPreset] = useState<InvoiceKindPreset>('services');
   const [headerNote, setHeaderNote] = useState('');
   const [notes, setNotes] = useState('');
   const [nonTaxableAmount, setNonTaxableAmount] = useState(0);
   const [otherTaxesAmount, setOtherTaxesAmount] = useState(0);
   const [currency] = useState<InvoiceCurrency>('CDF');
   const [exchangeRateInput, setExchangeRateInput] = useState('');
+  const [crossBorderOperation, setCrossBorderOperation] = useState<CrossBorderOperation>('local');
   const [previewOpen, setPreviewOpen] = useState(false);
-  const [items, setItems] = useState<DraftItem[]>([{ id: crypto.randomUUID(), catalog_item_id: null, description: '', quantity: 1, unit_price: 0, vat_rate: RDC_STANDARD_VAT_RATE }]);
+  const [selectedAdvanceInvoiceId, setSelectedAdvanceInvoiceId] = useState('');
+  const [advanceApplicationInput, setAdvanceApplicationInput] = useState('');
+  const [items, setItems] = useState<DraftItem[]>([createDraftItem()]);
 
   useEffect(() => {
     if (open) setInvoiceNumber(number);
@@ -926,6 +1406,33 @@ function InvoiceEditor({
 
   const activeCustomers = useMemo(() => customers.filter((customer) => customer.active !== false), [customers]);
   const activeCatalogItems = useMemo(() => catalogItems.filter((item) => item.active !== false), [catalogItems]);
+  const settledAdvanceInvoices = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const transaction of transactions) {
+      const invoiceId = getTransactionInvoiceId(transaction);
+      if (!invoiceId || !isInvoicePaymentTransaction(transaction)) continue;
+      map.set(invoiceId, (map.get(invoiceId) || 0) + Number(transaction.amount || 0));
+    }
+    return map;
+  }, [transactions]);
+  const creditedAdvanceInvoices = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const transaction of transactions) {
+      const sourceInvoiceId = getTransactionSourceInvoiceId(transaction);
+      if (!sourceInvoiceId || !isCreditNoteTransaction(transaction)) continue;
+      map.set(sourceInvoiceId, (map.get(sourceInvoiceId) || 0) + Number(transaction.amount || 0));
+    }
+    return map;
+  }, [transactions]);
+  const appliedAdvanceInvoices = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const transaction of transactions) {
+      const sourceInvoiceId = getTransactionSourceInvoiceId(transaction);
+      if (!sourceInvoiceId || !isAdvanceApplicationTransaction(transaction)) continue;
+      map.set(sourceInvoiceId, (map.get(sourceInvoiceId) || 0) + getTransactionRawNumber(transaction, 'advance_applied_amount'));
+    }
+    return map;
+  }, [transactions]);
 
   const totals = useMemo(() => {
     let subtotal = 0;
@@ -951,7 +1458,30 @@ function InvoiceEditor({
 
   const effectiveExchangeRate = useMemo(() => parseExchangeRateValue(exchangeRateInput), [exchangeRateInput]);
   const usdEquivalent = useMemo(() => computeUsdAmount(totals.total, currency, effectiveExchangeRate), [currency, effectiveExchangeRate, totals.total]);
-  const invoiceNotes = useMemo(() => buildInvoiceNotes(headerNote, notes, effectiveExchangeRate), [effectiveExchangeRate, headerNote, notes]);
+  const invoiceNotes = useMemo(() => buildInvoiceNotes(headerNote, notes, effectiveExchangeRate, crossBorderOperation), [crossBorderOperation, effectiveExchangeRate, headerNote, notes]);
+  const resolvedInvoiceKind = useMemo<InvoiceKind>(() => resolveInvoiceKindFromPreset(invoiceKindPreset, items), [invoiceKindPreset, items]);
+  const customerAdvanceOptions = useMemo<AdvanceInvoiceOption[]>(() => {
+    if (isQuote || invoiceKindPreset === 'advance') return [];
+    return invoices
+      .filter((invoice) => !invoice.is_quote && invoice.invoice_kind === 'advance' && !isCreditNoteInvoice(invoice))
+      .filter((invoice) => selectedCustomerId ? invoice.customer_id === selectedCustomerId : invoice.customer_name.trim().toLowerCase() === customerName.trim().toLowerCase())
+      .map((invoice) => {
+        const creditedAmount = creditedAdvanceInvoices.get(invoice.id) || 0;
+        const collectedAmount = Math.max(0, Math.min(Number(invoice.total || 0) - creditedAmount, settledAdvanceInvoices.get(invoice.id) || 0));
+        const appliedAmount = appliedAdvanceInvoices.get(invoice.id) || 0;
+        const availableAmount = Math.max(0, collectedAmount - appliedAmount);
+        return { invoice, collectedAmount, appliedAmount, availableAmount };
+      })
+      .filter((option) => option.availableAmount > 0.01)
+      .sort((a, b) => a.invoice.issue_date.localeCompare(b.invoice.issue_date));
+  }, [appliedAdvanceInvoices, creditedAdvanceInvoices, customerName, invoiceKindPreset, invoices, isQuote, selectedCustomerId, settledAdvanceInvoices]);
+  const selectedAdvanceOption = useMemo(() => customerAdvanceOptions.find((option) => option.invoice.id === selectedAdvanceInvoiceId) || null, [customerAdvanceOptions, selectedAdvanceInvoiceId]);
+  const advanceAppliedAmount = useMemo(() => {
+    if (!selectedAdvanceOption) return 0;
+    const inputAmount = Number(advanceApplicationInput || 0);
+    return Math.max(0, Math.min(Number.isFinite(inputAmount) ? inputAmount : 0, selectedAdvanceOption.availableAmount, totals.total));
+  }, [advanceApplicationInput, selectedAdvanceOption, totals.total]);
+  const netPayable = useMemo(() => Math.max(0, totals.total - advanceAppliedAmount), [advanceAppliedAmount, totals.total]);
 
   const previewInvoice = useMemo<Invoice>(() => ({
     id: 'preview-invoice',
@@ -977,6 +1507,9 @@ function InvoiceEditor({
     reminder_count: 0,
     last_reminder_at: null,
     payment_method: paymentMethod,
+    invoice_kind: resolvedInvoiceKind,
+    advance_source_invoice_id: selectedAdvanceOption?.invoice.id || null,
+    advance_applied_amount: advanceAppliedAmount || 0,
     normalization_status: 'standard',
     normalized_at: null,
     verification_code: null,
@@ -995,18 +1528,41 @@ function InvoiceEditor({
       unit_price: Number(item.unit_price),
       vat_rate: Number(item.vat_rate),
       line_total: Number(item.quantity) * Number(item.unit_price),
+      item_type: item.item_type,
       created_at: new Date().toISOString(),
     })),
-  }), [currency, customerAddress, customerEmail, customerName, customerRccm, customerTaxId, dueDate, invoiceNotes, invoiceNumber, isQuote, issueDate, items, number, otherTaxesAmount, paymentMethod, profile?.def_device_id, selectedCustomerId, totals.subtotal, totals.total, totals.vatTotal, user?.id]);
+  }), [advanceAppliedAmount, currency, customerAddress, customerEmail, customerName, customerRccm, customerTaxId, dueDate, invoiceNotes, invoiceNumber, isQuote, issueDate, items, number, otherTaxesAmount, paymentMethod, profile?.def_device_id, resolvedInvoiceKind, selectedAdvanceOption, selectedCustomerId, totals.subtotal, totals.total, totals.vatTotal, user?.id]);
+
+  useEffect(() => {
+    if (isQuote || invoiceKindPreset === 'advance') {
+      setSelectedAdvanceInvoiceId('');
+      setAdvanceApplicationInput('');
+    }
+  }, [invoiceKindPreset, isQuote]);
+
+  useEffect(() => {
+    if (!selectedAdvanceOption) {
+      if (selectedAdvanceInvoiceId) setSelectedAdvanceInvoiceId('');
+      if (advanceApplicationInput) setAdvanceApplicationInput('');
+      return;
+    }
+    const cappedValue = Math.min(selectedAdvanceOption.availableAmount, totals.total);
+    const currentValue = Number(advanceApplicationInput || 0);
+    if (!advanceApplicationInput || !Number.isFinite(currentValue) || currentValue > cappedValue) {
+      setAdvanceApplicationInput(cappedValue > 0 ? String(Number(cappedValue.toFixed(2))) : '');
+    }
+  }, [advanceApplicationInput, selectedAdvanceInvoiceId, selectedAdvanceOption, totals.total]);
 
   const updateItem = (id: string, patch: Partial<DraftItem>) => setItems((current) => current.map((item) => item.id === id ? { ...item, ...patch } : item));
-  const addItem = () => setItems((current) => [...current, { id: crypto.randomUUID(), catalog_item_id: null, description: '', quantity: 1, unit_price: 0, vat_rate: RDC_STANDARD_VAT_RATE }]);
+  const addItem = () => setItems((current) => [...current, createDraftItem(getDefaultItemTypeForPreset(invoiceKindPreset))]);
   const removeItem = (id: string) => setItems((current) => current.filter((item) => item.id !== id));
 
   const applyCustomer = (customer: Customer | undefined) => {
     if (!customer) return;
     setSelectedCustomerId(customer.id);
     setCustomerName(customer.name || '');
+    setSelectedAdvanceInvoiceId('');
+    setAdvanceApplicationInput('');
     setCustomerEmail(customer.email || '');
     setCustomerAddress(customer.address || '');
     setCustomerTaxId(customer.tax_id || '');
@@ -1024,6 +1580,7 @@ function InvoiceEditor({
       description: catalogItem.description || catalogItem.name,
       unit_price: Number(catalogItem.unit_price || 0),
       vat_rate: Number(catalogItem.vat_rate ?? RDC_STANDARD_VAT_RATE),
+      item_type: catalogItem.item_type,
     });
   };
 
@@ -1038,13 +1595,17 @@ function InvoiceEditor({
     setIssueDate(new Date().toISOString().slice(0, 10));
     setDueDate(new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10));
     setPaymentMethod('Virement bancaire');
+    setInvoiceKindPreset('services');
+    setSelectedAdvanceInvoiceId('');
+    setAdvanceApplicationInput('');
     setHeaderNote('');
     setNotes('');
     setNonTaxableAmount(0);
     setOtherTaxesAmount(0);
     setExchangeRateInput('');
+    setCrossBorderOperation('local');
     setPreviewOpen(false);
-    setItems([{ id: crypto.randomUUID(), catalog_item_id: null, description: '', quantity: 1, unit_price: 0, vat_rate: RDC_STANDARD_VAT_RATE }]);
+    setItems([createDraftItem()]);
   };
 
 
@@ -1092,6 +1653,7 @@ function InvoiceEditor({
         unit_price: number;
         vat_rate: number;
         line_total: number;
+        item_type: CatalogItemType;
       }>;
 
       for (const item of validItems) {
@@ -1109,7 +1671,7 @@ function InvoiceEditor({
             name: item.description.trim(),
             description: item.description.trim(),
             sku: null,
-            item_type: 'service',
+            item_type: item.item_type,
             unit_price: Number(item.unit_price),
             vat_rate: Number(item.vat_rate),
             currency,
@@ -1125,8 +1687,15 @@ function InvoiceEditor({
           unit_price: Number(item.unit_price),
           vat_rate: Number(item.vat_rate),
           line_total: Number(item.quantity) * Number(item.unit_price),
+          item_type: item.item_type,
         });
       }
+
+      if (advanceAppliedAmount > 0 && !selectedAdvanceOption) return toast({ kind: 'error', message: 'Selectionnez un acompte valide a imputer.' });
+      if (selectedAdvanceOption && advanceAppliedAmount <= 0) return toast({ kind: 'error', message: 'Le montant d acompte impute doit etre superieur a zero.' });
+
+      const finalStatus = status === 'draft' ? 'draft' : netPayable <= 0.01 ? 'paid' : status;
+      const finalPaidAt = finalStatus === 'paid' ? new Date().toISOString() : null;
 
       const createdInvoice = await createInvoice({
         user_id: user.id,
@@ -1140,40 +1709,50 @@ function InvoiceEditor({
         customer_rccm: customerRccm.trim() || null,
         issue_date: issueDate,
         due_date: dueDate,
-        status,
+        status: finalStatus,
         subtotal: totals.subtotal,
         vat_total: totals.vatTotal,
         total: totals.total,
         currency,
         payment_method: paymentMethod,
+        invoice_kind: resolvedInvoiceKind,
+        advance_source_invoice_id: selectedAdvanceOption?.invoice.id || null,
+        advance_applied_amount: advanceAppliedAmount || 0,
         other_taxes_amount: Number(otherTaxesAmount || 0),
         non_taxable_amount: Number(nonTaxableAmount || 0),
         notes: invoiceNotes,
+        paid_at: finalPaidAt,
         is_quote: isQuote,
         normalization_status: 'standard',
       }, preparedItems);
       if (!isQuote && status !== 'draft') {
-        await insertTransactions([
+        const createdInvoiceWithItems = { ...createdInvoice, items: preparedItems.map((item, index) => ({
+          id: `${createdInvoice.id}-${index}`,
+          invoice_id: createdInvoice.id,
+          catalog_item_id: item.catalog_item_id || null,
+          description: item.description,
+          quantity: item.quantity,
+          unit_price: item.unit_price,
+          vat_rate: item.vat_rate,
+          line_total: item.line_total,
+          item_type: item.item_type,
+          created_at: createdInvoice.created_at,
+        })) };
+        const transactionRows: Partial<Transaction>[] = [
           buildInvoiceIssueTransaction(
             user.id,
-            { ...createdInvoice, items: preparedItems.map((item, index) => ({
-              id: `${createdInvoice.id}-${index}`,
-              invoice_id: createdInvoice.id,
-              catalog_item_id: item.catalog_item_id || null,
-              description: item.description,
-              quantity: item.quantity,
-              unit_price: item.unit_price,
-              vat_rate: item.vat_rate,
-              line_total: item.line_total,
-              created_at: createdInvoice.created_at,
-            })) },
+            { ...createdInvoiceWithItems, invoice_kind: resolvedInvoiceKind, advance_source_invoice_id: selectedAdvanceOption?.invoice.id || null, advance_applied_amount: advanceAppliedAmount || 0 },
             categories,
             preparedItems.map((item) => item.description),
           ),
-        ]);
+        ];
+        if (selectedAdvanceOption && advanceAppliedAmount > 0) {
+          transactionRows.push(buildAdvanceApplicationTransaction(user.id, createdInvoiceWithItems, selectedAdvanceOption.invoice, advanceAppliedAmount));
+        }
+        await insertTransactions(transactionRows);
       }
-      await logAction('invoice.create', 'invoice', createdInvoice.id, { number: invoiceNumber.trim(), status, isQuote, total: totals.total, currency, customer_id: customerId, payment_method: paymentMethod, exchange_rate: effectiveExchangeRate });
-      toast({ kind: 'success', message: status === 'draft' ? `${isQuote ? 'Devis' : 'Facture'} personnalise(e) enregistree.` : `${isQuote ? 'Devis' : 'Facture'} personnalise(e) creee et marquee envoyee.` });
+      await logAction('invoice.create', 'invoice', createdInvoice.id, { number: invoiceNumber.trim(), status: finalStatus, isQuote, total: totals.total, net_payable: netPayable, currency, customer_id: customerId, payment_method: paymentMethod, exchange_rate: effectiveExchangeRate, advance_source_invoice_id: selectedAdvanceOption?.invoice.id || null, advance_applied_amount: advanceAppliedAmount || 0 });
+      toast({ kind: 'success', message: status === 'draft' ? `${isQuote ? 'Devis' : 'Facture'} personnalise(e) enregistree.` : netPayable <= 0.01 ? `${isQuote ? 'Devis' : 'Facture'} creee et soldee par acompte.` : `${isQuote ? 'Devis' : 'Facture'} personnalise(e) creee et marquee envoyee.` });
       reset();
       onSaved();
     } catch (error) {
@@ -1204,15 +1783,17 @@ function InvoiceEditor({
           <div><label className="label">RCCM client</label><input value={customerRccm} onChange={(e) => setCustomerRccm(e.target.value)} className="input" placeholder="Reference RCCM" /></div>
           <div><label className="label">Adresse</label><input value={customerAddress} onChange={(e) => setCustomerAddress(e.target.value)} className="input" placeholder="Adresse du client" /></div>
           <div><label className="label">Devise de facturation</label><input value="Franc congolais (CDF)" className="input" readOnly /></div>
-          <div><label className="label">Taux CDF/USD (facultatif)</label><input type="number" step="0.0001" min="0" value={exchangeRateInput} onChange={(e) => setExchangeRateInput(e.target.value)} className="input" placeholder="Ex : 2850" /></div>
+          <div><label className="label">Taux CDF/USD (facultatif)</label><input type="number" step="0.0001" min="0" value={exchangeRateInput} onChange={(e) => setExchangeRateInput(e.target.value)} className="input" placeholder="Ex : 2850" /></div><div><label className="label">Operation commerciale</label><select value={crossBorderOperation} onChange={(e) => setCrossBorderOperation(e.target.value as CrossBorderOperation)} className="input"><option value="local">Locale RDC</option><option value="export">Exportation</option></select></div>
           <div><label className="label">Mode de paiement</label><select value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value as (typeof PAYMENT_METHODS)[number])} className="input">{PAYMENT_METHODS.map((method) => <option key={method} value={method}>{method}</option>)}</select></div>
+          <div><label className="label">Nature de la facture</label><select value={invoiceKindPreset} onChange={(e) => setInvoiceKindPreset(e.target.value as InvoiceKindPreset)} className="input"><option value="services">Prestation de services</option><option value="goods">Vente de biens</option><option value="advance">Facture d acompte</option></select></div>
+          {!isQuote && invoiceKindPreset !== 'advance' && <div><label className="label">Acompte client a imputer</label><select value={selectedAdvanceInvoiceId} onChange={(e) => { const option = customerAdvanceOptions.find((item) => item.invoice.id === e.target.value) || null; setSelectedAdvanceInvoiceId(e.target.value); setAdvanceApplicationInput(option ? String(Number(Math.min(option.availableAmount, totals.total).toFixed(2))) : ''); }} className="input"><option value="">Aucun acompte</option>{customerAdvanceOptions.map((option) => <option key={option.invoice.id} value={option.invoice.id}>{option.invoice.number} - disponible {fmtMoney(option.availableAmount, currency)}</option>)}</select></div>}
           <div><label className="label">Date d emission</label><input type="date" value={issueDate} onChange={(e) => setIssueDate(e.target.value)} className="input" /></div>
           <div><label className="label">{isQuote ? 'Validite du devis' : 'Date d echeance'}</label><input type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} className="input" /></div>
           <div><label className="label">Mention d entete</label><input value={headerNote} onChange={(e) => setHeaderNote(e.target.value)} className="input" placeholder="Ex : Merci pour votre confiance" /></div>
         </div>
-        <div><div className="flex items-center justify-between"><label className="label mb-0">Lignes</label><button onClick={addItem} className="btn-ghost text-sm"><Plus size={14} /> Ajouter une ligne</button></div><div className="mt-2 space-y-2">{items.map((item) => <div key={item.id} className="grid grid-cols-12 items-center gap-2"><select className="input col-span-12 sm:col-span-3" value={item.catalog_item_id || ''} onChange={(e) => applyCatalogItem(item.id, e.target.value)}><option value="">Article / service</option>{activeCatalogItems.map((catalogItem) => <option key={catalogItem.id} value={catalogItem.id}>{catalogItem.name}</option>)}</select><input className="input col-span-12 sm:col-span-3" placeholder="Description" value={item.description} onChange={(e) => updateItem(item.id, { description: e.target.value })} /><input type="number" step="0.01" className="input col-span-4 text-right sm:col-span-1" value={item.quantity} onChange={(e) => updateItem(item.id, { quantity: Number(e.target.value) })} /><input type="number" step="0.01" className="input col-span-4 text-right sm:col-span-2" value={item.unit_price} onChange={(e) => updateItem(item.id, { unit_price: Number(e.target.value) })} /><select className="input col-span-2 px-1 sm:col-span-1" value={item.vat_rate} onChange={(e) => updateItem(item.id, { vat_rate: Number(e.target.value) })}><option value={0}>0%</option><option value={RDC_STANDARD_VAT_RATE}>{RDC_STANDARD_VAT_RATE}%</option></select><div className="col-span-1 text-right text-sm font-semibold text-ink-900">{fmtMoney(Number(item.quantity) * Number(item.unit_price), currency)}</div><button onClick={() => removeItem(item.id)} className="col-span-1 rounded-lg p-1 text-ink-400 hover:bg-danger-50 hover:text-danger-600"><Trash2 size={14} /></button></div>)}</div></div>
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4"><div><label className="label">Montant non taxable</label><input type="number" step="0.01" value={nonTaxableAmount} onChange={(e) => setNonTaxableAmount(Number(e.target.value))} className="input" /></div><div><label className="label">Autres taxes / frais</label><input type="number" step="0.01" value={otherTaxesAmount} onChange={(e) => setOtherTaxesAmount(Number(e.target.value))} className="input" /></div><div className="sm:col-span-2"><label className="label">Notes et conditions</label><textarea value={notes} onChange={(e) => setNotes(e.target.value)} className="input min-h-[88px]" placeholder="Conditions de paiement, references, mentions commerciales" /></div></div>
-        <div className="ml-auto w-full max-w-sm space-y-2 rounded-xl bg-ink-50 p-4"><div className="flex justify-between text-sm text-ink-600"><span>Sous-total HT</span><span className="font-medium">{fmtMoney(totals.subtotal, currency)}</span></div><div className="flex justify-between text-sm text-ink-600"><span>Part non taxable</span><span className="font-medium">{fmtMoney(nonTaxableAmount, currency)}</span></div><div className="flex justify-between text-sm text-ink-600"><span>TVA RDC</span><span className="font-medium">{fmtMoney(totals.vatTotal, currency)}</span></div><div className="flex justify-between text-sm text-ink-600"><span>Autres taxes / frais</span><span className="font-medium">{fmtMoney(otherTaxesAmount, currency)}</span></div>{effectiveExchangeRate ? <><div className="flex justify-between text-sm text-ink-600"><span>Taux CDF/USD</span><span className="font-medium">1 USD = {effectiveExchangeRate.toLocaleString('fr-CD')} CDF</span></div><div className="flex justify-between text-sm text-ink-600"><span>Montant en dollars</span><span className="font-medium">{fmtMoney(usdEquivalent, 'USD')}</span></div></> : null}<div className="flex justify-between border-t border-ink-200 pt-2 font-display text-lg font-extrabold text-ink-950"><span>Total TTC</span><span>{fmtMoney(totals.total, currency)}</span></div></div>
+        <div><div className="flex items-center justify-between"><label className="label mb-0">Lignes</label><button onClick={addItem} className="btn-ghost text-sm"><Plus size={14} /> Ajouter une ligne</button></div><div className="mt-2 space-y-2">{items.map((item) => <div key={item.id} className="grid grid-cols-12 items-center gap-2"><select className="input col-span-12 sm:col-span-2" value={item.catalog_item_id || ''} onChange={(e) => applyCatalogItem(item.id, e.target.value)}><option value="">Article / service</option>{activeCatalogItems.map((catalogItem) => <option key={catalogItem.id} value={catalogItem.id}>{catalogItem.name}</option>)}</select><select className="input col-span-6 sm:col-span-2" value={item.item_type} onChange={(e) => updateItem(item.id, { item_type: e.target.value as CatalogItemType })}><option value="service">Service</option><option value="product">Produit</option></select><input className="input col-span-12 sm:col-span-3" placeholder="Description" value={item.description} onChange={(e) => updateItem(item.id, { description: e.target.value })} /><input type="number" step="0.01" className="input col-span-3 text-right sm:col-span-1" value={item.quantity} onChange={(e) => updateItem(item.id, { quantity: Number(e.target.value) })} /><input type="number" step="0.01" className="input col-span-4 text-right sm:col-span-2" value={item.unit_price} onChange={(e) => updateItem(item.id, { unit_price: Number(e.target.value) })} /><select className="input col-span-2 px-1 sm:col-span-1" value={item.vat_rate} onChange={(e) => updateItem(item.id, { vat_rate: Number(e.target.value) })}><option value={0}>0%</option><option value={RDC_STANDARD_VAT_RATE}>{RDC_STANDARD_VAT_RATE}%</option></select><div className="col-span-1 text-right text-sm font-semibold text-ink-900">{fmtMoney(Number(item.quantity) * Number(item.unit_price), currency)}</div><button onClick={() => removeItem(item.id)} className="col-span-1 rounded-lg p-1 text-ink-400 hover:bg-danger-50 hover:text-danger-600"><Trash2 size={14} /></button></div>)}</div>{!isQuote ? <p className="mt-2 text-xs text-ink-500">Nature comptable detectee : {resolvedInvoiceKind === 'advance' ? 'Acompte client' : resolvedInvoiceKind === 'goods' ? 'Vente de biens' : resolvedInvoiceKind === 'services' ? 'Prestation de services' : 'Vente mixte biens/services'}</p> : null}</div>
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4"><div><label className="label">Montant non taxable</label><input type="number" step="0.01" value={nonTaxableAmount} onChange={(e) => setNonTaxableAmount(Number(e.target.value))} className="input" /></div><div><label className="label">Autres taxes / frais</label><input type="number" step="0.01" value={otherTaxesAmount} onChange={(e) => setOtherTaxesAmount(Number(e.target.value))} className="input" /></div>{selectedAdvanceOption ? <div><label className="label">Montant d acompte impute</label><input type="number" step="0.01" min="0" max={Math.min(selectedAdvanceOption.availableAmount, totals.total)} value={advanceApplicationInput} onChange={(e) => setAdvanceApplicationInput(e.target.value)} className="input" /></div> : null}<div className={selectedAdvanceOption ? "sm:col-span-1 lg:col-span-1" : "sm:col-span-2"}><label className="label">Notes et conditions</label><textarea value={notes} onChange={(e) => setNotes(e.target.value)} className="input min-h-[88px]" placeholder="Conditions de paiement, references, mentions commerciales" /></div></div>
+        <div className="ml-auto w-full max-w-sm space-y-2 rounded-xl bg-ink-50 p-4"><div className="flex justify-between text-sm text-ink-600"><span>Sous-total HT</span><span className="font-medium">{fmtMoney(totals.subtotal, currency)}</span></div><div className="flex justify-between text-sm text-ink-600"><span>Part non taxable</span><span className="font-medium">{fmtMoney(nonTaxableAmount, currency)}</span></div><div className="flex justify-between text-sm text-ink-600"><span>TVA RDC</span><span className="font-medium">{fmtMoney(totals.vatTotal, currency)}</span></div><div className="flex justify-between text-sm text-ink-600"><span>Autres taxes / frais</span><span className="font-medium">{fmtMoney(otherTaxesAmount, currency)}</span></div>{selectedAdvanceOption ? <><div className="flex justify-between text-sm text-ink-600"><span>Acompte impute</span><span className="font-medium">{fmtMoney(advanceAppliedAmount, currency)}</span></div><div className="rounded-xl bg-white px-3 py-2 text-xs text-ink-500">Acompte source: {selectedAdvanceOption.invoice.number} | Disponible: {fmtMoney(selectedAdvanceOption.availableAmount, currency)}</div></> : null}{effectiveExchangeRate ? <><div className="flex justify-between text-sm text-ink-600"><span>Taux CDF/USD</span><span className="font-medium">1 USD = {effectiveExchangeRate.toLocaleString('fr-CD')} CDF</span></div><div className="flex justify-between text-sm text-ink-600"><span>Montant en dollars</span><span className="font-medium">{fmtMoney(usdEquivalent, 'USD')}</span></div></> : null}<div className="flex justify-between border-t border-ink-200 pt-2 text-sm font-semibold text-ink-700"><span>Total TTC</span><span>{fmtMoney(totals.total, currency)}</span></div><div className="flex justify-between font-display text-lg font-extrabold text-ink-950"><span>Net a payer</span><span>{fmtMoney(netPayable, currency)}</span></div></div>
       </div>
       </Modal>
       <InvoicePreview invoice={previewOpen ? previewInvoice : null} profile={profile} onClose={() => setPreviewOpen(false)} previewMode />
@@ -1237,6 +1818,12 @@ function InvoicePaymentModal({
 
   const currency = getInvoiceCurrency(draft.invoice);
   const residualAmount = Math.max(0, Number(draft.invoice.total || 0) - Number(settledAmount || 0));
+  const storedExchangeRate = readInvoiceExchangeRate(draft.invoice.notes);
+  const usesUsdSettlement = draft.treasuryLabel === 'Banque en devises (USD)';
+  const computedBankAmountCdf = usesUsdSettlement && draft.settlementExchangeRate && draft.settlementAmountUsd
+    ? Number((draft.settlementExchangeRate * draft.settlementAmountUsd).toFixed(2))
+    : draft.amount;
+  const fxDifferenceAmount = Number((computedBankAmountCdf - Number(draft.amount || 0)).toFixed(2));
 
   return (
     <Modal
@@ -1250,7 +1837,7 @@ function InvoicePaymentModal({
         <div className="rounded-xl bg-ink-50 p-4 text-sm text-ink-700">
           <p><span className="font-semibold text-ink-900">Client:</span> {draft.invoice.customer_name}</p>
           <p className="mt-1"><span className="font-semibold text-ink-900">Total facture:</span> {fmtMoney(draft.invoice.total, currency)}</p>
-          <p className="mt-1"><span className="font-semibold text-ink-900">Deja encaisse:</span> {fmtMoney(Math.min(settledAmount, Number(draft.invoice.total || 0)), currency)}</p>
+          <p className="mt-1"><span className="font-semibold text-ink-900">Deja couvert:</span> {fmtMoney(Math.min(settledAmount, Number(draft.invoice.total || 0)), currency)}</p>
           <p className="mt-1"><span className="font-semibold text-ink-900">Solde restant:</span> {fmtMoney(residualAmount, currency)}</p>
         </div>
 
@@ -1264,9 +1851,120 @@ function InvoicePaymentModal({
             <input type="number" step="0.01" min="0" max={residualAmount} value={draft.amount} onChange={(e) => onChange({ ...draft, amount: Number(e.target.value) })} className="input" />
           </div>
           <div className="sm:col-span-2">
-            <label className="label">Compte de tresorerie</label>
-            <select value={draft.treasuryLabel} onChange={(e) => onChange({ ...draft, treasuryLabel: e.target.value as TreasuryAccountLabel })} className="input">
+            <label className="label">Compte de tresorerie / remise</label>
+            <select value={draft.treasuryLabel} onChange={(e) => { const nextLabel = e.target.value as TreasuryAccountLabel; const foreignDraft = resolveForeignSettlementDraft(draft.invoice, draft.amount, nextLabel); onChange({ ...draft, treasuryLabel: nextLabel, settlementExchangeRate: foreignDraft.settlementExchangeRate, settlementAmountUsd: foreignDraft.settlementAmountUsd }); }} className="input">
               {TREASURY_ACCOUNT_OPTIONS.map((option) => <option key={option} value={option}>{option}</option>)}
+            </select>
+          </div>
+          {usesUsdSettlement ? <>
+            <div>
+              <label className="label">Montant recu en USD</label>
+              <input type="number" step="0.01" min="0" value={draft.settlementAmountUsd ?? ''} onChange={(e) => onChange({ ...draft, settlementAmountUsd: e.target.value ? Number(e.target.value) : null })} className="input" placeholder="Ex : 120" />
+            </div>
+            <div>
+              <label className="label">Taux d encaissement CDF/USD</label>
+              <input type="number" step="0.0001" min="0" value={draft.settlementExchangeRate ?? ''} onChange={(e) => onChange({ ...draft, settlementExchangeRate: e.target.value ? Number(e.target.value) : null })} className="input" placeholder="Ex : 2850" />
+            </div>
+            <div className="sm:col-span-2 rounded-xl bg-brand-50 p-3 text-xs text-brand-900">
+              {storedExchangeRate ? <p>Taux facture: 1 USD = {storedExchangeRate.toLocaleString('fr-CD')} CDF</p> : <p>Aucun taux facture memorise sur cette facture.</p>}
+              <p className="mt-1">Equivalent tresorerie: {fmtMoney(computedBankAmountCdf, 'CDF')}</p>
+              {Math.abs(fxDifferenceAmount) > 0.01 ? <p className="mt-1">Ecart de change calcule: {fxDifferenceAmount > 0 ? 'gain' : 'perte'} de {fmtMoney(Math.abs(fxDifferenceAmount), 'CDF')}</p> : <p className="mt-1">Aucun ecart de change calcule.</p>}
+            </div>
+          </> : null}
+        </div>
+      </div>
+    </Modal>
+  );
+}
+function InvoiceEffectModal({
+  draft,
+  settledAmount,
+  onClose,
+  onSave,
+  onChange,
+}: {
+  draft: InvoiceEffectDraft | null;
+  settledAmount: number;
+  onClose: () => void;
+  onSave: () => void;
+  onChange: (draft: InvoiceEffectDraft | null) => void;
+}) {
+  if (!draft) return null;
+
+  const currency = getInvoiceCurrency(draft.invoice);
+  const residualAmount = Math.max(0, Number(draft.invoice.total || 0) - Number(settledAmount || 0));
+
+  return (
+    <Modal
+      open={!!draft}
+      onClose={onClose}
+      title={`Creer un effet de commerce - ${draft.invoice.number || ''}`}
+      size="md"
+      footer={<><button onClick={onClose} className="btn-ghost">Annuler</button><button onClick={onSave} className="btn-primary"><FileSignature size={16} /> Comptabiliser l effet</button></>}
+    >
+      <div className="space-y-4">
+        <div className="rounded-xl bg-ink-50 p-4 text-sm text-ink-700">
+          <p><span className="font-semibold text-ink-900">Client:</span> {draft.invoice.customer_name}</p>
+          <p className="mt-1"><span className="font-semibold text-ink-900">Solde a transformer:</span> {fmtMoney(residualAmount, currency)}</p>
+        </div>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <div>
+            <label className="label">Date de creation</label>
+            <input type="date" value={draft.effectDate} onChange={(e) => onChange({ ...draft, effectDate: e.target.value })} className="input" />
+          </div>
+          <div>
+            <label className="label">Montant de l effet</label>
+            <input type="number" step="0.01" min="0" max={residualAmount} value={draft.amount} onChange={(e) => onChange({ ...draft, amount: Number(e.target.value) })} className="input" />
+          </div>
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
+function InvoiceEffectCollectionModal({
+  draft,
+  pendingAmount,
+  onClose,
+  onSave,
+  onChange,
+}: {
+  draft: InvoiceEffectCollectionDraft | null;
+  pendingAmount: number;
+  onClose: () => void;
+  onSave: () => void;
+  onChange: (draft: InvoiceEffectCollectionDraft | null) => void;
+}) {
+  if (!draft) return null;
+
+  const currency = getInvoiceCurrency(draft.invoice);
+
+  return (
+    <Modal
+      open={!!draft}
+      onClose={onClose}
+      title={`Encaisser un effet de commerce - ${draft.invoice.number || ''}`}
+      size="md"
+      footer={<><button onClick={onClose} className="btn-ghost">Annuler</button><button onClick={onSave} className="btn-primary"><Download size={16} /> Comptabiliser l encaissement</button></>}
+    >
+      <div className="space-y-4">
+        <div className="rounded-xl bg-ink-50 p-4 text-sm text-ink-700">
+          <p><span className="font-semibold text-ink-900">Client:</span> {draft.invoice.customer_name}</p>
+          <p className="mt-1"><span className="font-semibold text-ink-900">Effets en portefeuille:</span> {fmtMoney(pendingAmount, currency)}</p>
+        </div>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <div>
+            <label className="label">Date d encaissement</label>
+            <input type="date" value={draft.collectionDate} onChange={(e) => onChange({ ...draft, collectionDate: e.target.value })} className="input" />
+          </div>
+          <div>
+            <label className="label">Montant encaisse</label>
+            <input type="number" step="0.01" min="0" max={pendingAmount} value={draft.amount} onChange={(e) => onChange({ ...draft, amount: Number(e.target.value) })} className="input" />
+          </div>
+          <div className="sm:col-span-2">
+            <label className="label">Banque de destination</label>
+            <select value={draft.treasuryLabel} onChange={(e) => onChange({ ...draft, treasuryLabel: e.target.value as TreasuryAccountLabel })} className="input">
+              {TREASURY_ACCOUNT_OPTIONS.filter((option) => option !== 'Cheques remis a l encaissement').map((option) => <option key={option} value={option}>{option}</option>)}
             </select>
           </div>
         </div>
@@ -1274,6 +1972,60 @@ function InvoicePaymentModal({
     </Modal>
   );
 }
+
+function InvoicePaymentBankCreditModal({
+  draft,
+  pendingAmount,
+  onClose,
+  onSave,
+  onChange,
+}: {
+  draft: InvoicePaymentBankCreditDraft | null;
+  pendingAmount: number;
+  onClose: () => void;
+  onSave: () => void;
+  onChange: (draft: InvoicePaymentBankCreditDraft | null) => void;
+}) {
+  if (!draft) return null;
+
+  const currency = getInvoiceCurrency(draft.invoice);
+
+  return (
+    <Modal
+      open={!!draft}
+      onClose={onClose}
+      title={`Avis de credit bancaire - ${draft.invoice.number || ''}`}
+      size="md"
+      footer={<><button onClick={onClose} className="btn-ghost">Annuler</button><button onClick={onSave} className="btn-primary"><Download size={16} /> Comptabiliser l avis de credit</button></>}
+    >
+      <div className="space-y-4">
+        <div className="rounded-xl bg-ink-50 p-4 text-sm text-ink-700">
+          <p><span className="font-semibold text-ink-900">Client:</span> {draft.invoice.customer_name}</p>
+          <p className="mt-1"><span className="font-semibold text-ink-900">Facture:</span> {draft.invoice.number}</p>
+          <p className="mt-1"><span className="font-semibold text-ink-900">Cheques en attente de credit:</span> {fmtMoney(pendingAmount, currency)}</p>
+        </div>
+
+        <div className="grid gap-3 sm:grid-cols-2">
+          <div>
+            <label className="label">Date de l avis de credit</label>
+            <input type="date" value={draft.creditDate} onChange={(e) => onChange({ ...draft, creditDate: e.target.value })} className="input" />
+          </div>
+          <div>
+            <label className="label">Montant credite</label>
+            <input type="number" step="0.01" min="0" max={pendingAmount} value={draft.amount} onChange={(e) => onChange({ ...draft, amount: Number(e.target.value) })} className="input" />
+          </div>
+          <div className="sm:col-span-2">
+            <label className="label">Banque de destination</label>
+            <select value={draft.treasuryLabel} onChange={(e) => onChange({ ...draft, treasuryLabel: e.target.value as TreasuryAccountLabel })} className="input">
+              {TREASURY_ACCOUNT_OPTIONS.filter((option) => option !== 'Cheques remis a l encaissement').map((option) => <option key={option} value={option}>{option}</option>)}
+            </select>
+          </div>
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
 function InvoiceCreditNoteModal({
   draft,
   creditedAmount,
@@ -1318,9 +2070,19 @@ function InvoiceCreditNoteModal({
             <input type="number" step="0.01" min="0" max={availableAmount} value={draft.amount} onChange={(e) => onChange({ ...draft, amount: Number(e.target.value) })} className="input" />
           </div>
           <div>
+            <label className="label">Nature de l avoir</label>
+            <select value={draft.kind} onChange={(e) => onChange({ ...draft, kind: e.target.value as CreditNoteKind })} className="input">
+              <option value="return_goods">Retour de marchandise</option>
+              <option value="service_adjustment">Ajustement de prestation</option>
+              <option value="commercial_discount">Reduction commerciale</option>
+              <option value="financial_discount">Reduction financiere / escompte</option>
+            </select>
+          </div>
+          <div>
             <label className="label">Motif</label>
             <textarea value={draft.reason} onChange={(e) => onChange({ ...draft, reason: e.target.value })} className="input min-h-[88px]" placeholder="Ex : Retour marchandise, remise commerciale, regularisation de facturation" />
           </div>
+          
         </div>
       </div>
     </Modal>
@@ -1370,11 +2132,12 @@ function InvoiceCreditNoteRefundModal({
             <input type="number" step="0.01" min="0" max={availableAmount} value={draft.amount} onChange={(e) => onChange({ ...draft, amount: Number(e.target.value) })} className="input" />
           </div>
           <div className="sm:col-span-2">
-            <label className="label">Compte de tresorerie</label>
+            <label className="label">Compte de tresorerie / remise</label>
             <select value={draft.treasuryLabel} onChange={(e) => onChange({ ...draft, treasuryLabel: e.target.value as TreasuryAccountLabel })} className="input">
               {TREASURY_ACCOUNT_OPTIONS.map((option) => <option key={option} value={option}>{option}</option>)}
             </select>
           </div>
+          
         </div>
       </div>
     </Modal>
@@ -1767,11 +2530,14 @@ function InvoicePreview({ invoice, profile, onClose, previewMode = false }: { in
             </div>
           </div>
           <p>Merci de signaler toute contestation dans un delai de 14 jours apres reception de cette facture.</p>
+          
         </div>
       </div>
     </Modal>
   );
 }
+
+
 
 
 

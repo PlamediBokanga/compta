@@ -96,6 +96,7 @@ export interface AccountingDocument {
 export type InvoiceStatus = 'draft' | 'sent' | 'paid' | 'overdue' | 'cancelled';
 export type InvoiceNormalizationStatus = 'standard' | 'ready' | 'normalized' | 'failed';
 export type CatalogItemType = 'product' | 'service';
+export type InvoiceKind = 'goods' | 'services' | 'advance' | 'mixed' | 'credit_note';
 
 export interface Customer {
   id: string;
@@ -151,6 +152,9 @@ export interface Invoice {
   reminder_count: number;
   last_reminder_at: string | null;
   payment_method?: string | null;
+  invoice_kind?: InvoiceKind | null;
+  advance_source_invoice_id?: string | null;
+  advance_applied_amount?: number | null;
   normalization_status?: InvoiceNormalizationStatus | null;
   normalized_at?: string | null;
   verification_code?: string | null;
@@ -172,6 +176,7 @@ export interface InvoiceItem {
   unit_price: number;
   vat_rate: number;
   line_total: number;
+  item_type?: CatalogItemType | null;
   created_at: string;
 }
 

@@ -185,6 +185,22 @@ export interface AccountingControls {
   imbalance: number;
 }
 
+export interface VatCentralizationLine {
+  label: string;
+  debitAccount: string;
+  creditAccount: string;
+  amount: number;
+}
+
+export interface VatCentralizationSummary {
+  status: 'payable' | 'credit' | 'neutral';
+  amount: number;
+  targetAccount: string;
+  targetLabel: string;
+  lines: VatCentralizationLine[];
+  explanation: string;
+}
+
 export interface AccountingReport {
   entries: AccountEntry[];
   balances: AccountBalance[];
@@ -205,6 +221,7 @@ export interface AccountingReport {
   vatSignals: ComplianceSignal[];
   cycleReviews: ClosingCycleReview[];
   yearEndAdjustments: YearEndAdjustment[];
+  vatCentralization: VatCentralizationSummary;
   totals: {
     totalDebit: number;
     totalCredit: number;
@@ -260,6 +277,72 @@ function buildReference(label: string) {
   return (label || 'Sans reference').replace(/\s+/g, ' ').trim();
 }
 
+function buildVatCentralization(vatCollected: number, vatDeductible: number): VatCentralizationSummary {
+  const payable = Math.max(0, vatCollected - vatDeductible);
+  const credit = Math.max(0, vatDeductible - vatCollected);
+
+  if (payable <= 0.01 && credit <= 0.01) {
+    return {
+      status: 'neutral',
+      amount: 0,
+      targetAccount: '444100',
+      targetLabel: 'Etat, TVA due',
+      lines: [],
+      explanation: 'Aucune centralisation TVA n est necessaire sur la periode.',
+    };
+  }
+
+  if (payable > 0.01) {
+    const lines: VatCentralizationLine[] = [];
+    if (vatDeductible > 0) {
+      lines.push({
+        label: 'Imputer la TVA deductible sur la TVA collectee',
+        debitAccount: '443100 - TVA facturee',
+        creditAccount: '445600 - TVA deductible',
+        amount: vatDeductible,
+      });
+    }
+    lines.push({
+      label: 'Constater la TVA nette due a la DGI',
+      debitAccount: '443100 - TVA facturee',
+      creditAccount: '444100 - Etat, TVA due',
+      amount: payable,
+    });
+    return {
+      status: 'payable',
+      amount: payable,
+      targetAccount: '444100',
+      targetLabel: 'Etat, TVA due',
+      lines,
+      explanation: 'En fin de periode, la TVA collectee et la TVA deductible sont centralisees vers 444100 pour degager la TVA nette due.',
+    };
+  }
+
+  const lines: VatCentralizationLine[] = [];
+  if (vatCollected > 0) {
+    lines.push({
+      label: 'Imputer la TVA collectee sur la TVA deductible',
+      debitAccount: '443100 - TVA facturee',
+      creditAccount: '445600 - TVA deductible',
+      amount: vatCollected,
+    });
+  }
+  lines.push({
+    label: 'Constater le credit de TVA a reporter',
+    debitAccount: '444900 - Etat, credit de TVA a reporter',
+    creditAccount: '445600 - TVA deductible',
+    amount: credit,
+  });
+  return {
+    status: 'credit',
+    amount: credit,
+    targetAccount: '444900',
+    targetLabel: 'Etat, credit de TVA a reporter',
+    lines,
+    explanation: 'En fin de periode, la TVA deductible excedentaire est centralisee vers 444900 pour suivi et report.',
+  };
+}
+
 function buildMatchingKey(label: string) {
   return normalizeLabel(label)
     .replace(/paiement|reglement|reversement|virement|versement|facture|invoice|client|fournisseur/gi, ' ')
@@ -278,8 +361,52 @@ function getTransactionRawString(transaction: Transaction, key: string) {
   return typeof value === 'string' && value.trim() ? value.trim() : null;
 }
 
+function getTransactionRawNumber(transaction: Transaction, key: string) {
+  const raw = getTransactionRaw(transaction);
+  const value = raw?.[key];
+  const parsed = typeof value === 'number' ? value : Number(value);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+function getCreditNoteOperationalAccount(transaction: Transaction): AccountDefinition {
+  const creditNoteKind = getTransactionRawString(transaction, 'credit_note_kind');
+  const sourceInvoiceKind = getTransactionRawString(transaction, 'source_invoice_kind');
+
+  if (creditNoteKind === 'financial_discount') {
+    return { accountNumber: '673100', accountName: 'Escomptes accordes', syscohadaClass: '67', categoryKind: 'expense' };
+  }
+  if (creditNoteKind === 'return_goods') {
+    return { accountNumber: '707100', accountName: 'Ventes de marchandises', syscohadaClass: '70', categoryKind: 'income' };
+  }
+  if (creditNoteKind === 'service_adjustment' || sourceInvoiceKind === 'services') {
+    return { accountNumber: '706100', accountName: 'Prestations de services', syscohadaClass: '70', categoryKind: 'income' };
+  }
+  return { accountNumber: '709100', accountName: 'Rabais, remises et ristournes accordes', syscohadaClass: '70', categoryKind: 'income' };
+}
+
+function getTransactionRawStringArray(transaction: Transaction, key: string) {
+  const raw = getTransactionRaw(transaction);
+  const value = raw?.[key];
+  return Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string' && item.trim().length > 0) : [];
+}
+
 function isInvoicePaymentTransaction(transaction: Transaction) {
-  return getTransactionRawString(transaction, 'accounting_event') === 'invoice_payment';
+  return ['invoice_payment', 'invoice_payment_remittance'].includes(getTransactionRawString(transaction, 'accounting_event') || '');
+}
+
+function isInvoicePaymentBankCreditTransaction(transaction: Transaction) {
+  return getTransactionRawString(transaction, 'accounting_event') === 'invoice_payment_bank_credit';
+}
+
+function isInvoiceEffectIssueTransaction(transaction: Transaction) {
+  return getTransactionRawString(transaction, 'accounting_event') === 'invoice_effect_issue';
+}
+
+function isInvoiceEffectCollectionTransaction(transaction: Transaction) {
+  return getTransactionRawString(transaction, 'accounting_event') === 'invoice_effect_collection';
+}
+
+function isAdvanceApplicationTransaction(transaction: Transaction) {
+  return getTransactionRawString(transaction, 'accounting_event') === 'advance_application';
 }
 
 function isCreditNoteTransaction(transaction: Transaction) {
@@ -304,6 +431,12 @@ function getTransactionMatchingKey(transaction: Transaction) {
 function getTreasuryAccount(transaction: Transaction): AccountDefinition {
   const label = normalizeLabel(transaction.bank_account_label || transaction.label);
 
+  if (matches(label, ['effet', 'effets', 'portefeuille'])) {
+    return { accountNumber: '412100', accountName: 'Clients, effets a recevoir', syscohadaClass: '41', categoryKind: 'asset' };
+  }
+  if (matches(label, ['cheque', 'cheques', 'encaissement', 'remise'])) {
+    return { accountNumber: '514100', accountName: 'Cheques remis a l encaissement', syscohadaClass: '51', categoryKind: 'treasury' };
+  }
   if (matches(label, ['caisse', 'cash', 'especes'])) {
     return { accountNumber: '571100', accountName: 'Caisse siege', syscohadaClass: '57', categoryKind: 'treasury' };
   }
@@ -321,6 +454,22 @@ function resolveOperationalAccount(transaction: Transaction, categoryLabel: stri
   const text = buildSearchText(categoryLabel, transaction.label, transaction.bank_account_label);
 
   if (transaction.direction === 'in') {
+    const invoiceKind = getTransactionRawString(transaction, 'invoice_kind');
+    const itemTypes = getTransactionRawStringArray(transaction, 'item_types');
+    const crossBorderOperation = getTransactionRawString(transaction, 'cross_border_operation');
+    if (invoiceKind === 'services' || (itemTypes.length > 0 && itemTypes.every((item) => item === 'service'))) {
+      return crossBorderOperation === 'export'
+        ? { accountNumber: '706200', accountName: 'Prestations exportees', syscohadaClass: '70', categoryKind: 'income' }
+        : { accountNumber: '706100', accountName: 'Prestations de services', syscohadaClass: '70', categoryKind: 'income' };
+    }
+    if (invoiceKind === 'goods' || (itemTypes.length > 0 && itemTypes.every((item) => item === 'product'))) {
+      return crossBorderOperation === 'export'
+        ? { accountNumber: '707200', accountName: 'Ventes a l export', syscohadaClass: '70', categoryKind: 'income' }
+        : { accountNumber: '707100', accountName: 'Ventes de marchandises', syscohadaClass: '70', categoryKind: 'income' };
+    }
+    if (invoiceKind === 'mixed') {
+      return { accountNumber: '707900', accountName: 'Ventes mixtes biens et services', syscohadaClass: '70', categoryKind: 'income' };
+    }
     if (matches(text, ['service', 'prestation', 'conseil', 'honoraire', 'abonnement'])) {
       return { accountNumber: '706100', accountName: 'Prestations de services', syscohadaClass: '70', categoryKind: 'income' };
     }
@@ -333,6 +482,12 @@ function resolveOperationalAccount(transaction: Transaction, categoryLabel: stri
     return { accountNumber: '707900', accountName: 'Autres produits d exploitation', syscohadaClass: '70', categoryKind: 'income' };
   }
 
+  if (matches(text, ['douane', 'transitaire', 'fret', 'freight', 'import', 'assurance import', 'dedouanement'])) {
+    return { accountNumber: '601500', accountName: 'Frais sur achats et importations', syscohadaClass: '60', categoryKind: 'expense' };
+  }
+  if (matches(text, ['commission import', 'commission achat', 'courtage achat', 'courtage import'])) {
+    return { accountNumber: '601600', accountName: 'Commissions et courtages sur achats', syscohadaClass: '60', categoryKind: 'expense' };
+  }
   if (matches(text, ['achat', 'marchandise', 'stock', 'matiere premiere', 'matiere'])) {
     return { accountNumber: '601100', accountName: 'Achats de marchandises', syscohadaClass: '60', categoryKind: 'expense' };
   }
@@ -371,6 +526,9 @@ function resolveOperationalAccount(transaction: Transaction, categoryLabel: stri
 }
 
 function getPayableAccount(text: string): AccountDefinition {
+  if (matches(text, ['transitaire', 'dedouanement', 'commissionnaire'])) {
+    return { accountNumber: '401200', accountName: 'Fournisseurs transitaires', syscohadaClass: '40', categoryKind: 'liability' };
+  }
   if (matches(text, ['salaire', 'personnel', 'prime', 'paie', 'remuneration'])) {
     return { accountNumber: '422100', accountName: 'Personnel - Remunerations dues', syscohadaClass: '42', categoryKind: 'liability' };
   }
@@ -411,6 +569,10 @@ function isExplicitSettlement(text: string) {
 }
 
 function getSettlementAccount(transaction: Transaction, categoryLabel: string): AccountDefinition {
+  if (isInvoicePaymentTransaction(transaction) || isInvoicePaymentBankCreditTransaction(transaction) || isInvoiceEffectIssueTransaction(transaction) || isInvoiceEffectCollectionTransaction(transaction) || isCreditNoteRefundTransaction(transaction)) {
+    return getTreasuryAccount(transaction);
+  }
+
   if (transaction.reconciliated) {
     return getTreasuryAccount(transaction);
   }
@@ -425,9 +587,15 @@ function getSettlementAccount(transaction: Transaction, categoryLabel: string): 
 function getJournalMeta(transaction: Transaction, categoryLabel: string, settlementAccount: AccountDefinition) {
   const text = buildSearchText(categoryLabel, transaction.label, transaction.bank_account_label);
 
-  if (isInvoicePaymentTransaction(transaction) || isCreditNoteRefundTransaction(transaction)) {
+  if (isInvoicePaymentTransaction(transaction) || isInvoicePaymentBankCreditTransaction(transaction) || isInvoiceEffectIssueTransaction(transaction) || isInvoiceEffectCollectionTransaction(transaction) || isCreditNoteRefundTransaction(transaction)) {
     if (settlementAccount.accountNumber.startsWith('57')) {
       return { code: 'CA', label: 'Journal de caisse' };
+    }
+    if (settlementAccount.accountNumber.startsWith('514')) {
+      return { code: 'BQ', label: 'Journal de banque - valeurs a l encaissement' };
+    }
+    if (settlementAccount.accountNumber.startsWith('412')) {
+      return { code: 'OD', label: 'Journal des effets a recevoir' };
     }
     return { code: 'BQ', label: 'Journal de banque' };
   }
@@ -497,7 +665,7 @@ function buildClosingChecks(controls: AccountingControls): ClosingCheck[] {
 
 function buildJournalSignals(transactions: Transaction[], categories: Category[]): ComplianceSignal[] {
   const salesWithoutInvoiceRef = transactions.filter((transaction) => {
-    if (transaction.direction !== 'in' || isInvoicePaymentTransaction(transaction)) return false;
+    if (transaction.direction !== 'in' || isInvoicePaymentTransaction(transaction) || isInvoicePaymentBankCreditTransaction(transaction) || isInvoiceEffectIssueTransaction(transaction) || isInvoiceEffectCollectionTransaction(transaction)) return false;
     const reference = getTransactionRawString(transaction, 'invoice_number') || getTransactionRawString(transaction, 'source_invoice_number');
     return !reference;
   }).length;
@@ -543,6 +711,28 @@ function buildJournalSignals(transactions: Transaction[], categories: Category[]
   ].filter((signal): signal is ComplianceSignal => Boolean(signal));
 }
 
+function buildCrossBorderSignals(transactions: Transaction[]): ComplianceSignal[] {
+  const exportSales = transactions.filter((transaction) => transaction.direction === 'in' && getTransactionRawString(transaction, 'cross_border_operation') === 'export').length;
+  const importLinkedOps = transactions.filter((transaction) => transaction.direction === 'out' && matches(buildSearchText('Non categorise', transaction.label, transaction.bank_account_label), ['import', 'transitaire', 'douane', 'fret', 'dedouanement'])).length;
+
+  return [
+    exportSales > 0 ? {
+      id: 'cross-border-export',
+      severity: 'info',
+      label: 'Ventes a l export detectees',
+      detail: 'Verifier les pieces d exportation, la devise de reference, le taux applique et le traitement fiscal/documentaire associe.',
+      count: exportSales,
+    } : null,
+    importLinkedOps > 0 ? {
+      id: 'cross-border-import',
+      severity: 'info',
+      label: 'Operations d importation / transitaire detectees',
+      detail: 'Verifier les factures du transitaire, droits et frais accessoires, ainsi que la bonne ventilation des frais sur achats et importations.',
+      count: importLinkedOps,
+    } : null,
+  ].filter((signal): signal is ComplianceSignal => Boolean(signal));
+}
+
 function buildVatSignals(transactions: Transaction[], categories: Category[]): ComplianceSignal[] {
   let taxableSalesWithoutVat = 0;
   let deductiblePurchasesWithoutVat = 0;
@@ -553,7 +743,7 @@ function buildVatSignals(transactions: Transaction[], categories: Category[]): C
     const categoryVatRate = Number(category?.vat_rate || 0);
     const vatAmount = Number(transaction.vat_amount || 0);
     const amount = Number(transaction.amount || 0);
-    const isCommercialSale = transaction.direction === 'in' && !isInvoicePaymentTransaction(transaction);
+    const isCommercialSale = transaction.direction === 'in' && !isInvoicePaymentTransaction(transaction) && !isInvoicePaymentBankCreditTransaction(transaction) && !isInvoiceEffectIssueTransaction(transaction) && !isInvoiceEffectCollectionTransaction(transaction);
     const isCommercialPurchase = transaction.direction === 'out' && !isCreditNoteTransaction(transaction) && !isCreditNoteRefundTransaction(transaction);
 
     if (amount > 0 && vatAmount - amount > 0.01) suspiciousVatAmounts += 1;
@@ -1004,7 +1194,7 @@ function buildYearEndAdjustments(
 ): YearEndAdjustment[] {
   const adjustments: YearEndAdjustment[] = [];
   const expenseTransactions = transactions.filter((transaction) => transaction.direction === 'out');
-  const incomeTransactions = transactions.filter((transaction) => transaction.direction === 'in' && !isInvoicePaymentTransaction(transaction));
+  const incomeTransactions = transactions.filter((transaction) => transaction.direction === 'in' && !isInvoicePaymentTransaction(transaction) && !isInvoicePaymentBankCreditTransaction(transaction) && !isInvoiceEffectIssueTransaction(transaction) && !isInvoiceEffectCollectionTransaction(transaction));
 
   const amortizableTransactions = expenseTransactions.filter((transaction) => {
     const category = categories.find((item) => item.id === transaction.category_id);
@@ -1214,14 +1404,17 @@ function buildOpenItems(transactions: Transaction[], categories: Category[]): Op
     const reference = getTransactionReference(transaction);
 
     if (transaction.direction === 'in') {
+      if (isInvoicePaymentBankCreditTransaction(transaction) || isInvoiceEffectCollectionTransaction(transaction)) {
+        continue;
+      }
       const key = `client-${matchingKey}`;
       const amount = Number(transaction.amount || 0);
       const ageDays = differenceInDays(transaction.date, now);
       const current = map.get(key) || { id: key, side: 'client' as const, accountNumber: '411100', accountName: 'Clients', reference, oldestDate: transaction.date, newestDate: transaction.date, grossAmount: 0, settledAmount: 0, residualAmount: 0, count: 0, ageDays: 0, status: 'recent' as const, matchingStatus: 'open' as const };
       current.reference = reference;
-      if (isInvoicePaymentTransaction(transaction)) current.settledAmount += amount;
+      if (isInvoicePaymentTransaction(transaction) || isAdvanceApplicationTransaction(transaction)) current.settledAmount += amount;
       else current.grossAmount += amount;
-      if (!isInvoicePaymentTransaction(transaction) && transaction.reconciliated) current.settledAmount += amount;
+      if (!isInvoicePaymentTransaction(transaction) && !isAdvanceApplicationTransaction(transaction) && transaction.reconciliated) current.settledAmount += amount;
       current.count += 1;
       if (transaction.date < current.oldestDate) current.oldestDate = transaction.date;
       if (transaction.date > current.newestDate) current.newestDate = transaction.date;
@@ -1293,22 +1486,48 @@ export function buildAccountingReport(transactions: Transaction[], categories: C
     const settlementAccount = getSettlementAccount(transaction, categoryLabel);
     const liabilityNature = getLiabilityNature(payableAccount);
     const amountTtc = Number(transaction.amount || 0);
+    const bankAmountCdf = isInvoicePaymentTransaction(transaction) ? getTransactionRawNumber(transaction, 'bank_amount_cdf') || amountTtc : amountTtc;
+    const fxDifferenceAmount = isInvoicePaymentTransaction(transaction) ? getTransactionRawNumber(transaction, 'fx_difference_amount') : 0;
     const vatAmount = Math.max(0, Number(transaction.vat_amount || 0));
     const amountHt = Math.max(0, amountTtc - vatAmount);
     const journalMeta = getJournalMeta(transaction, categoryLabel, settlementAccount);
     const lines: AccountEntry[] = [];
 
     if (transaction.direction === 'in') {
-      if (isInvoicePaymentTransaction(transaction)) {
+      if (isInvoicePaymentBankCreditTransaction(transaction)) {
         lines.push(buildEntry(transaction, categoryLabel, journalMeta.code, journalMeta.label, settlementAccount, amountTtc, 0));
+        lines.push(buildEntry(transaction, categoryLabel, journalMeta.code, journalMeta.label, { accountNumber: '514100', accountName: 'Cheques remis a l encaissement', syscohadaClass: '51', categoryKind: 'treasury' }, 0, amountTtc));
+      } else if (isInvoiceEffectCollectionTransaction(transaction)) {
+        lines.push(buildEntry(transaction, categoryLabel, journalMeta.code, journalMeta.label, settlementAccount, amountTtc, 0));
+        lines.push(buildEntry(transaction, categoryLabel, journalMeta.code, journalMeta.label, { accountNumber: '412100', accountName: 'Clients, effets a recevoir', syscohadaClass: '41', categoryKind: 'asset' }, 0, amountTtc));
+      } else if (isInvoiceEffectIssueTransaction(transaction)) {
+        lines.push(buildEntry(transaction, categoryLabel, journalMeta.code, journalMeta.label, { accountNumber: '412100', accountName: 'Clients, effets a recevoir', syscohadaClass: '41', categoryKind: 'asset' }, amountTtc, 0));
+        lines.push(buildEntry(transaction, categoryLabel, journalMeta.code, journalMeta.label, { accountNumber: '411100', accountName: 'Clients', syscohadaClass: '41', categoryKind: 'asset' }, 0, amountTtc));
+      } else if (isInvoicePaymentTransaction(transaction)) {
+        lines.push(buildEntry(transaction, categoryLabel, journalMeta.code, journalMeta.label, settlementAccount, bankAmountCdf, 0));
+        if (fxDifferenceAmount < -0.01) {
+          lines.push(buildEntry(transaction, categoryLabel, journalMeta.code, journalMeta.label, { accountNumber: '656100', accountName: 'Pertes de change', syscohadaClass: '65', categoryKind: 'expense' }, Math.abs(fxDifferenceAmount), 0));
+        }
+        lines.push(buildEntry(transaction, categoryLabel, journalMeta.code, journalMeta.label, { accountNumber: '411100', accountName: 'Clients', syscohadaClass: '41', categoryKind: 'asset' }, 0, amountTtc));
+        if (fxDifferenceAmount > 0.01) {
+          lines.push(buildEntry(transaction, categoryLabel, journalMeta.code, journalMeta.label, { accountNumber: '756100', accountName: 'Gains de change', syscohadaClass: '75', categoryKind: 'income' }, 0, fxDifferenceAmount));
+        }
+      } else if (isAdvanceApplicationTransaction(transaction)) {
+        lines.push(buildEntry(transaction, categoryLabel, journalMeta.code, journalMeta.label, { accountNumber: '419100', accountName: 'Clients, avances et acomptes recus', syscohadaClass: '41', categoryKind: 'liability' }, amountTtc, 0));
         lines.push(buildEntry(transaction, categoryLabel, journalMeta.code, journalMeta.label, { accountNumber: '411100', accountName: 'Clients', syscohadaClass: '41', categoryKind: 'asset' }, 0, amountTtc));
       } else {
+        const invoiceKind = getTransactionRawString(transaction, 'invoice_kind');
         lines.push(buildEntry(transaction, categoryLabel, journalMeta.code, journalMeta.label, settlementAccount, amountTtc, 0));
-        if (amountHt > 0) lines.push(buildEntry(transaction, categoryLabel, journalMeta.code, journalMeta.label, operationalAccount, 0, amountHt));
-        if (vatAmount > 0) lines.push(buildEntry(transaction, categoryLabel, journalMeta.code, journalMeta.label, { accountNumber: '443100', accountName: 'TVA facturee', syscohadaClass: '44', categoryKind: 'vat' }, 0, vatAmount));
+        if (invoiceKind === 'advance') {
+          lines.push(buildEntry(transaction, categoryLabel, journalMeta.code, journalMeta.label, { accountNumber: '419100', accountName: 'Clients, avances et acomptes recus', syscohadaClass: '41', categoryKind: 'liability' }, 0, amountTtc));
+        } else {
+          if (amountHt > 0) lines.push(buildEntry(transaction, categoryLabel, journalMeta.code, journalMeta.label, operationalAccount, 0, amountHt));
+          if (vatAmount > 0) lines.push(buildEntry(transaction, categoryLabel, journalMeta.code, journalMeta.label, { accountNumber: '443100', accountName: 'TVA facturee', syscohadaClass: '44', categoryKind: 'vat' }, 0, vatAmount));
+        }
       }
     } else if (isCreditNoteTransaction(transaction)) {
-      if (amountHt > 0) lines.push(buildEntry(transaction, categoryLabel, journalMeta.code, journalMeta.label, { accountNumber: '709100', accountName: 'Rabais, remises et ristournes accordes', syscohadaClass: '70', categoryKind: 'income' }, amountHt, 0));
+      const creditNoteAccount = getCreditNoteOperationalAccount(transaction);
+      if (amountHt > 0) lines.push(buildEntry(transaction, categoryLabel, journalMeta.code, journalMeta.label, creditNoteAccount, amountHt, 0));
       if (vatAmount > 0) lines.push(buildEntry(transaction, categoryLabel, journalMeta.code, journalMeta.label, { accountNumber: '443100', accountName: 'TVA facturee', syscohadaClass: '44', categoryKind: 'vat' }, vatAmount, 0));
       lines.push(buildEntry(transaction, categoryLabel, journalMeta.code, journalMeta.label, { accountNumber: '411100', accountName: 'Clients', syscohadaClass: '41', categoryKind: 'asset' }, 0, amountTtc));
     } else if (isCreditNoteRefundTransaction(transaction)) {
@@ -1363,6 +1582,7 @@ export function buildAccountingReport(transactions: Transaction[], categories: C
   const taxDebt = balances.filter((balance) => balance.accountNumber.startsWith('44')).reduce((sum, balance) => sum + (balance.credit - balance.debit), 0);
   const vatPayable = Math.max(0, vatCollected - vatDeductible);
   const vatCredit = Math.max(0, vatDeductible - vatCollected);
+  const vatCentralization = buildVatCentralization(vatCollected, vatDeductible);
   const netResult = totalIncome - totalExpenses;
   const uncategorizedTransactions = transactions.filter((transaction) => !transaction.category_id).length;
   const imbalance = Math.abs(totalDebit - totalCredit);
@@ -1371,6 +1591,7 @@ export function buildAccountingReport(transactions: Transaction[], categories: C
   const cutoffSignals = buildCutoffSignals(controls, openItems);
   const journalSignals = buildJournalSignals(transactions, categories);
   const vatSignals = buildVatSignals(transactions, categories);
+  const crossBorderSignals = buildCrossBorderSignals(transactions);
   const cycleReviews = buildCycleReviews(controls, openItems, cutoffSignals, journalSignals, vatSignals);
   const yearEndAdjustments = buildYearEndAdjustments(transactions, categories, openItems);
   const nonVatTaxDebt = Math.max(0, taxDebt - vatPayable);
@@ -1392,8 +1613,9 @@ export function buildAccountingReport(transactions: Transaction[], categories: C
   if (vatPayable > 0) alerts.push('La TVA collectee nette est positive: verifier la declaration et l echeance DGI correspondante.');
   journalSignals.forEach((signal) => alerts.push(`${signal.label}: ${signal.count} element(s) a verifier.`));
   vatSignals.forEach((signal) => alerts.push(`${signal.label}: ${signal.count} element(s) a verifier.`));
+  crossBorderSignals.forEach((signal) => alerts.push(`${signal.label}: ${signal.count} element(s) a verifier.`));
 
-  return { entries, balances, journals, classSummaries, dueDetails, liabilityBreakdown, openItems, controls, alerts, closingChecks: buildClosingChecks(controls), recommendedEntries: buildRecommendedEntries(controls), preClosingActions, cutoffSignals, journalSignals, vatSignals, cycleReviews, yearEndAdjustments, pnl: { income, expenses, operatingIncome: balances.filter((balance) => ['70', '71', '72', '73'].some((prefix) => balance.accountNumber.startsWith(prefix))).reduce((sum, balance) => sum + (balance.credit - balance.debit), 0), operatingExpenses: balances.filter((balance) => ['60', '61', '62', '63', '64', '65', '66', '68'].some((prefix) => balance.accountNumber.startsWith(prefix))).reduce((sum, balance) => sum + (balance.debit - balance.credit), 0), financialIncome: balances.filter((balance) => balance.accountNumber.startsWith('77')).reduce((sum, balance) => sum + (balance.credit - balance.debit), 0), financialExpenses: balances.filter((balance) => balance.accountNumber.startsWith('67')).reduce((sum, balance) => sum + (balance.debit - balance.credit), 0), taxAndSocialExpenses: balances.filter((balance) => ['64', '664'].some((prefix) => balance.accountNumber.startsWith(prefix))).reduce((sum, balance) => sum + (balance.debit - balance.credit), 0), personnelExpenses: balances.filter((balance) => balance.accountNumber.startsWith('66')).reduce((sum, balance) => sum + (balance.debit - balance.credit), 0), totalIncome, totalExpenses, netResult }, balanceSheet, totals: { totalDebit, totalCredit, income: totalIncome, expenses: totalExpenses, vatCollected, vatDeductible } };
+  return { entries, balances, journals, classSummaries, dueDetails, liabilityBreakdown, openItems, controls, alerts, closingChecks: buildClosingChecks(controls), recommendedEntries: buildRecommendedEntries(controls), preClosingActions, cutoffSignals, journalSignals, vatSignals, cycleReviews, yearEndAdjustments, vatCentralization, pnl: { income, expenses, operatingIncome: balances.filter((balance) => ['70', '71', '72', '73'].some((prefix) => balance.accountNumber.startsWith(prefix))).reduce((sum, balance) => sum + (balance.credit - balance.debit), 0), operatingExpenses: balances.filter((balance) => ['60', '61', '62', '63', '64', '65', '66', '68'].some((prefix) => balance.accountNumber.startsWith(prefix))).reduce((sum, balance) => sum + (balance.debit - balance.credit), 0), financialIncome: balances.filter((balance) => balance.accountNumber.startsWith('77')).reduce((sum, balance) => sum + (balance.credit - balance.debit), 0), financialExpenses: balances.filter((balance) => balance.accountNumber.startsWith('67')).reduce((sum, balance) => sum + (balance.debit - balance.credit), 0), taxAndSocialExpenses: balances.filter((balance) => ['64', '664'].some((prefix) => balance.accountNumber.startsWith(prefix))).reduce((sum, balance) => sum + (balance.debit - balance.credit), 0), personnelExpenses: balances.filter((balance) => balance.accountNumber.startsWith('66')).reduce((sum, balance) => sum + (balance.debit - balance.credit), 0), totalIncome, totalExpenses, netResult }, balanceSheet, totals: { totalDebit, totalCredit, income: totalIncome, expenses: totalExpenses, vatCollected, vatDeductible } };
 }
 
 export function generateFEC(transactions: Transaction[], categories: Category[], profile: { siren: string | null; company_name: string | null }): string {
@@ -1418,6 +1640,12 @@ export function generateCSV(report: AccountingReport): string {
   const rows = report.entries.map((entry) => [entry.date, `"${entry.journalCode} - ${entry.journalLabel}"`, `"${entry.accountNumber} - ${entry.accountName}"`, `"${entry.label.replace(/"/g, '""')}"`, entry.debit.toFixed(2), entry.credit.toFixed(2), (entry.debit - entry.credit).toFixed(2)].join(','));
   return [header, ...rows].join('\n');
 }
+
+
+
+
+
+
 
 
 

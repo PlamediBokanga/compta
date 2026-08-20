@@ -97,7 +97,7 @@ export async function createInvoice(
   const invData = inv as Invoice;
 
   if (items.length) {
-    const rows = items.map((it) => ({ ...it, invoice_id: invData.id }));
+    const rows = items.map((it) => ({ ...it, invoice_id: invData.id, item_type: it.item_type || 'service' }));
     const { error: itemsErr } = await supabase.from('invoice_items').insert(rows);
     if (itemsErr) throw new Error(itemsErr.message);
   }
@@ -119,7 +119,7 @@ export async function replaceInvoiceItems(invoiceId: string, items: Omit<Invoice
   const { error: delErr } = await supabase.from('invoice_items').delete().eq('invoice_id', invoiceId);
   if (delErr) throw new Error(delErr.message);
   if (items.length) {
-    const rows = items.map((it) => ({ ...it, invoice_id: invoiceId }));
+    const rows = items.map((it) => ({ ...it, invoice_id: invoiceId, item_type: it.item_type || 'service' }));
     const { error: insErr } = await supabase.from('invoice_items').insert(rows);
     if (insErr) throw new Error(insErr.message);
   }

@@ -161,7 +161,7 @@ export function DeclarationsPage() {
         booked: Math.max(0, accounting.controls.vatPayable),
         declared: tvaDeclared,
         gap: Math.max(0, accounting.controls.vatPayable) - tvaDeclared,
-        detail: 'Rapprocher la TVA nette, le compte 443 et les declarations TVA deja generees.',
+        detail: 'Rapprocher la TVA nette, la centralisation 443/445 vers 4441 ou 4449 et les declarations TVA deja generees.',
       },
     ];
   }, [declarations, payrollSocial.totalSocialDue, accounting.controls.socialDebt, iprEstimate.monthlyTax, iereEstimate.amount, accounting.controls.taxDebt, computedTaxes.vatDue, accounting.controls.vatPayable]);
@@ -180,7 +180,7 @@ export function DeclarationsPage() {
         { label: 'Credit reporte', value: fmtCDF(computedTaxes.vatCredit) },
         { label: 'TVA nette a reverser', value: fmtCDF(computedTaxes.vatDue) },
       ],
-      reminder: computedTaxes.vatCredit > 0 ? 'Un credit de TVA est disponible et doit etre rapproche avant emission definitive.' : 'La TVA nette du mois doit etre rapprochee avec le compte 443 avant teledeclaration.',
+      reminder: computedTaxes.vatCredit > 0 ? 'Un credit de TVA est disponible et doit etre rapproche puis centralise vers 444900 avant emission definitive.' : 'La TVA nette du mois doit etre rapprochee puis centralisee de 443/445 vers 444100 avant teledeclaration.',
     },
     {
       id: 'social',
@@ -245,8 +245,8 @@ export function DeclarationsPage() {
       label: 'TVA DGI',
       ready: tvaReady,
       detail: computedTaxes.vatCredit > 0
-        ? `Credit de TVA disponible: ${fmtCDF(computedTaxes.vatCredit)}.`
-        : `TVA nette a declarer: ${fmtCDF(computedTaxes.vatDue)}.`,
+        ? `Credit de TVA disponible: ${fmtCDF(computedTaxes.vatCredit)} via 444900.`
+        : `TVA nette a declarer: ${fmtCDF(computedTaxes.vatDue)} via 444100.`,
     },
     {
       id: 'social',
@@ -281,9 +281,12 @@ export function DeclarationsPage() {
     const dueDate = new Date(year, month + 1, 15);
     const periodLabel = new Intl.DateTimeFormat('fr-FR', { month: 'long', year: 'numeric' }).format(periodStart);
     const amount = computedTaxes.vatDue > 0 ? computedTaxes.vatDue : 0;
+    const centralizationLines = accounting.vatCentralization.lines
+      .map((line) => `${line.debitAccount} / ${line.creditAccount} : ${fmtCDF(line.amount)}`)
+      .join(' | ');
     const note = computedTaxes.vatCredit > 0
-      ? `TVA collectee ${fmtCDF(computedTaxes.collected)} - TVA deductible ${fmtCDF(computedTaxes.deductible)} - credit reporte ${fmtCDF(computedTaxes.vatCredit)}`
-      : `TVA collectee ${fmtCDF(computedTaxes.collected)} - TVA deductible ${fmtCDF(computedTaxes.deductible)}`;
+      ? `TVA collectee ${fmtCDF(computedTaxes.collected)} - TVA deductible ${fmtCDF(computedTaxes.deductible)} - credit reporte ${fmtCDF(computedTaxes.vatCredit)} - centralisation ${accounting.vatCentralization.targetAccount} - ${centralizationLines}`
+      : `TVA collectee ${fmtCDF(computedTaxes.collected)} - TVA deductible ${fmtCDF(computedTaxes.deductible)} - centralisation ${accounting.vatCentralization.targetAccount} - ${centralizationLines}`;
 
     try {
       await insertDeclaration({
@@ -613,6 +616,35 @@ export function DeclarationsPage() {
                 ))}
               </div>
               <p className="mt-4 text-xs text-ink-600">{section.reminder}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="card p-5">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h2 className="font-display text-base font-bold text-ink-900">Centralisation TVA SYSCOHADA</h2>
+            <p className="mt-1 text-xs text-ink-500">Virer 443 et 445 vers 444100 ou 444900 avant declaration DGI de la periode.</p>
+          </div>
+          <Badge tone={accounting.vatCentralization.status === 'payable' ? 'warning' : accounting.vatCentralization.status === 'credit' ? 'brand' : 'neutral'}>
+            {accounting.vatCentralization.status === 'payable' ? 'TVA due' : accounting.vatCentralization.status === 'credit' ? 'Credit TVA' : 'Neutre'}
+          </Badge>
+        </div>
+        <div className="mt-4 rounded-2xl bg-ink-50 p-4">
+          <p className="text-sm font-semibold text-ink-900">{accounting.vatCentralization.targetAccount} - {accounting.vatCentralization.targetLabel}</p>
+          <p className="mt-1 text-sm text-ink-600">Montant net: {fmtCDF(accounting.vatCentralization.amount)}</p>
+          <p className="mt-2 text-xs text-ink-500">{accounting.vatCentralization.explanation}</p>
+        </div>
+        <div className="mt-4 grid gap-3 lg:grid-cols-2">
+          {accounting.vatCentralization.lines.length === 0 ? (
+            <div className="rounded-xl bg-ink-50 px-4 py-3 text-sm text-ink-500">Aucune ecriture de centralisation a passer sur cette periode.</div>
+          ) : accounting.vatCentralization.lines.map((line, index) => (
+            <div key={line.label + index} className="rounded-xl border border-ink-100 bg-white px-4 py-3">
+              <p className="text-sm font-semibold text-ink-900">{line.label}</p>
+              <p className="mt-1 text-xs text-ink-500">Debit: {line.debitAccount}</p>
+              <p className="text-xs text-ink-500">Credit: {line.creditAccount}</p>
+              <p className="mt-2 text-sm font-semibold text-ink-900">{fmtCDF(line.amount)}</p>
             </div>
           ))}
         </div>
