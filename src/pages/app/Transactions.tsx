@@ -38,6 +38,41 @@ const stateTone: Record<CategorizationState, 'brand' | 'warning' | 'neutral' | '
   uncategorized: 'accent',
 };
 
+type GuidedOperationKind =
+  | 'overdraft_credit'
+  | 'overdraft_fee'
+  | 'subsidy_operating_award'
+  | 'subsidy_operating_collection'
+  | 'subsidy_balance_award'
+  | 'subsidy_balance_collection'
+  | 'investment_purchase'
+  | 'investment_disposal';
+
+type TreasuryLabel = 'Banque locale (CDF)' | 'Banque en devises (USD)' | 'Caisse' | 'Mobile Money';
+
+const TREASURY_OPTIONS: TreasuryLabel[] = ['Banque locale (CDF)', 'Banque en devises (USD)', 'Caisse', 'Mobile Money'];
+
+const GUIDED_OPERATION_CONFIG: Array<{
+  kind: GuidedOperationKind;
+  label: string;
+  description: string;
+  direction: Direction;
+  reconciliated: boolean;
+  treasuryLabel: TreasuryLabel;
+  defaultVatRate: number;
+}> = [
+  { kind: 'overdraft_credit', label: 'Decouvert bancaire recu', description: 'Constater une mise a disposition de tresorerie court terme par la banque.', direction: 'in', reconciliated: true, treasuryLabel: 'Banque locale (CDF)', defaultVatRate: 0 },
+  { kind: 'overdraft_fee', label: 'Agios et commissions de decouvert', description: 'Comptabiliser les prelevements bancaires lies au decouvert.', direction: 'out', reconciliated: true, treasuryLabel: 'Banque locale (CDF)', defaultVatRate: 0 },
+  { kind: 'subsidy_operating_award', label: 'Attribution subvention exploitation', description: 'Constater la subvention d exploitation a recevoir.', direction: 'in', reconciliated: false, treasuryLabel: 'Banque locale (CDF)', defaultVatRate: 0 },
+  { kind: 'subsidy_operating_collection', label: 'Encaissement subvention exploitation', description: 'Enregistrer l encaissement de la subvention d exploitation.', direction: 'in', reconciliated: true, treasuryLabel: 'Banque locale (CDF)', defaultVatRate: 0 },
+  { kind: 'subsidy_balance_award', label: 'Attribution subvention d equilibre', description: 'Constater la subvention d equilibre a recevoir.', direction: 'in', reconciliated: false, treasuryLabel: 'Banque locale (CDF)', defaultVatRate: 0 },
+  { kind: 'subsidy_balance_collection', label: 'Encaissement subvention d equilibre', description: 'Enregistrer l encaissement de la subvention d equilibre.', direction: 'in', reconciliated: true, treasuryLabel: 'Banque locale (CDF)', defaultVatRate: 0 },
+  { kind: 'investment_purchase', label: 'Acquisition d immobilisation', description: 'Saisir un investissement ou achat d immobilisation.', direction: 'out', reconciliated: true, treasuryLabel: 'Banque locale (CDF)', defaultVatRate: 16 },
+  { kind: 'investment_disposal', label: 'Cession d immobilisation', description: 'Enregistrer le produit de cession d une immobilisation.', direction: 'in', reconciliated: true, treasuryLabel: 'Banque locale (CDF)', defaultVatRate: 0 },
+];
+
+const getGuidedOperationConfig = (kind: GuidedOperationKind) => GUIDED_OPERATION_CONFIG.find((item) => item.kind === kind) || GUIDED_OPERATION_CONFIG[0];
+
 export function TransactionsPage() {
   const { user } = useAuth();
   const { items: transactions, loading, reload } = useTransactions();
@@ -49,6 +84,7 @@ export function TransactionsPage() {
   const [catFilter, setCatFilter] = useState<string>('all');
   const [importing, setImporting] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
+  const [guidedOpen, setGuidedOpen] = useState(false);
   const [page, setPage] = useState(1);
   const csvInputRef = useRef<HTMLInputElement>(null);
   const PAGE_SIZE = 25;
@@ -195,6 +231,9 @@ export function TransactionsPage() {
             className="hidden"
             onChange={(e) => handleCsvImport(e.target.files?.[0])}
           />
+          <button onClick={() => setGuidedOpen(true)} className="btn-secondary">
+            <Plus size={16} /> Operations avancees
+          </button>
           <button onClick={() => setAddOpen(true)} className="btn-primary">
             <Plus size={16} /> Transaction
           </button>
@@ -383,6 +422,11 @@ export function TransactionsPage() {
         <Pagination page={page} totalPages={totalPages} onPageChange={setPage} total={filtered.length} pageSize={PAGE_SIZE} />
       </div>
 
+      <GuidedOperationsModal
+        open={guidedOpen}
+        onClose={() => setGuidedOpen(false)}
+        onSaved={() => { reload(); setGuidedOpen(false); }}
+      />
       <AddTransactionModal
         open={addOpen}
         onClose={() => setAddOpen(false)}
@@ -390,6 +434,125 @@ export function TransactionsPage() {
         onSaved={() => { reload(); setAddOpen(false); }}
       />
     </div>
+  );
+}
+
+function GuidedOperationsModal({
+  open,
+  onClose,
+  onSaved,
+}: {
+  open: boolean;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const { user } = useAuth();
+  const toast = useToast();
+  const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
+  const [kind, setKind] = useState<GuidedOperationKind>('overdraft_credit');
+  const [label, setLabel] = useState(getGuidedOperationConfig('overdraft_credit').label);
+  const [amount, setAmount] = useState('');
+  const [vatRate, setVatRate] = useState(String(getGuidedOperationConfig('overdraft_credit').defaultVatRate));
+  const [treasuryLabel, setTreasuryLabel] = useState<TreasuryLabel>(getGuidedOperationConfig('overdraft_credit').treasuryLabel);
+
+  useEffect(() => {
+    const config = getGuidedOperationConfig(kind);
+    setLabel(config.label);
+    setVatRate(String(config.defaultVatRate));
+    setTreasuryLabel(config.treasuryLabel);
+  }, [kind]);
+
+  const save = async () => {
+    if (!user) return;
+    const numericAmount = Number(amount);
+    const numericVatRate = Number(vatRate || 0);
+    if (!label.trim() || !amount || Number.isNaN(numericAmount) || numericAmount <= 0) {
+      toast({ kind: 'error', message: 'Libelle et montant valides requis.' });
+      return;
+    }
+
+    const config = getGuidedOperationConfig(kind);
+    try {
+      await insertTransactions([
+        {
+          user_id: user.id,
+          date,
+          label: label.trim(),
+          amount: numericAmount,
+          direction: config.direction,
+          category_id: null,
+          categorization_state: 'manual',
+          vat_rate: numericVatRate,
+          vat_amount: computeVat(numericAmount, numericVatRate),
+          bank_account_label: config.reconciliated ? treasuryLabel : null,
+          reconciliated: config.reconciliated,
+          document_id: null,
+          raw: {
+            accounting_event: kind,
+            guided_operation_kind: kind,
+            treasury_label: treasuryLabel,
+            source: 'transactions_module',
+          },
+        },
+      ]);
+      toast({ kind: 'success', message: 'Operation guidee enregistree.' });
+      setAmount('');
+      onSaved();
+    } catch (error) {
+      toast({ kind: 'error', message: error instanceof Error ? error.message : 'Erreur' });
+    }
+  };
+
+  const current = getGuidedOperationConfig(kind);
+  const investmentMode = kind === 'investment_purchase' || kind === 'investment_disposal';
+
+  return (
+    <Modal
+      open={open}
+      onClose={onClose}
+      title="Operations avancees"
+      footer={<><button onClick={onClose} className="btn-ghost">Annuler</button><button onClick={save} className="btn-primary"><Check size={16} /> Enregistrer</button></>}
+    >
+      <div className="space-y-4">
+        <div className="rounded-xl bg-ink-50 p-4 text-sm text-ink-700">
+          <p className="font-semibold text-ink-900">Point 2 et point 3</p>
+          <p className="mt-1">Utilisez ces operations pour le decouvert, les subventions et les investissements sans passer par une facture.</p>
+        </div>
+        <div>
+          <label className="label">Operation</label>
+          <select value={kind} onChange={(e) => setKind(e.target.value as GuidedOperationKind)} className="input">
+            {GUIDED_OPERATION_CONFIG.map((item) => <option key={item.kind} value={item.kind}>{item.label}</option>)}
+          </select>
+          <p className="mt-1 text-xs text-ink-500">{current.description}</p>
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="label">Date</label>
+            <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="input" />
+          </div>
+          <div>
+            <label className="label">Montant TTC</label>
+            <input type="number" step="0.01" value={amount} onChange={(e) => setAmount(e.target.value)} className="input" placeholder="0,00" />
+          </div>
+        </div>
+        <div>
+          <label className="label">Libelle</label>
+          <input value={label} onChange={(e) => setLabel(e.target.value)} className="input" />
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="label">Compte de tresorerie</label>
+            <select value={treasuryLabel} onChange={(e) => setTreasuryLabel(e.target.value as TreasuryLabel)} className="input" disabled={!current.reconciliated}>
+              {TREASURY_OPTIONS.map((option) => <option key={option} value={option}>{option}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="label">Taux de TVA</label>
+            <input type="number" step="0.01" value={vatRate} onChange={(e) => setVatRate(e.target.value)} className="input" disabled={!investmentMode} />
+          </div>
+        </div>
+      </div>
+    </Modal>
   );
 }
 
@@ -516,4 +679,7 @@ function AddTransactionModal({
     </Modal>
   );
 }
+
+
+
 

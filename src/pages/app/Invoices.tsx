@@ -1,4 +1,4 @@
-﻿import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { AlertCircle, Bell, CheckCircle2, Clock, Download, Eye, FileSignature, FileText, Plus, Search, Send, Trash2, X, type LucideIcon } from 'lucide-react';
 import { Badge } from '../../components/ui/Badge';
 import { Modal } from '../../components/ui/Modal';
@@ -196,6 +196,36 @@ interface InvoiceEffectCollectionDraft {
   treasuryLabel: TreasuryAccountLabel;
 }
 
+type ShortTermFinanceMode =
+  | 'effect_discount_remittance'
+  | 'effect_discount_credit'
+  | 'effect_discount_maturity'
+  | 'claim_assignment_transfer'
+  | 'claim_assignment_credit'
+  | 'claim_assignment_collection'
+  | 'claim_assignment_repayment'
+  | 'factoring_transfer'
+  | 'factoring_credit'
+  | 'effect_unpaid_notice'
+  | 'effect_unpaid_fee'
+  | 'endorsement_transfer';
+
+interface ShortTermFinanceConfigItem {
+  mode: ShortTermFinanceMode;
+  label: string;
+  title: string;
+  description: string;
+  treasuryLabel?: TreasuryAccountLabel;
+}
+
+interface ShortTermFinanceDraft {
+  invoice: Invoice;
+  mode: ShortTermFinanceMode;
+  amount: number;
+  operationDate: string;
+  treasuryLabel: TreasuryAccountLabel;
+}
+
 interface CreditNoteDraft {
   invoice: Invoice;
   amount: number;
@@ -237,6 +267,7 @@ const isInvoicePaymentRemittanceTransaction = (transaction: Transaction) => getT
 const isInvoicePaymentBankCreditTransaction = (transaction: Transaction) => getTransactionRawString(transaction, 'accounting_event') === 'invoice_payment_bank_credit';
 const isInvoiceEffectIssueTransaction = (transaction: Transaction) => getTransactionRawString(transaction, 'accounting_event') === 'invoice_effect_issue';
 const isInvoiceEffectCollectionTransaction = (transaction: Transaction) => getTransactionRawString(transaction, 'accounting_event') === 'invoice_effect_collection';
+
 const isAdvanceApplicationTransaction = (transaction: Transaction) => getTransactionRawString(transaction, 'accounting_event') === 'advance_application';
 const isCreditNoteTransaction = (transaction: Transaction) => getTransactionRawString(transaction, 'accounting_event') === 'credit_note_issue';
 const isCreditNoteRefundTransaction = (transaction: Transaction) => getTransactionRawString(transaction, 'accounting_event') === 'credit_note_refund';
@@ -409,6 +440,130 @@ const buildInvoiceEffectCollectionTransaction = (userId: string, invoice: Invoic
   },
 });
 
+const SHORT_TERM_FINANCE_CONFIG: ShortTermFinanceConfigItem[] = [
+  {
+    mode: 'effect_discount_remittance',
+    label: 'Remise a l escompte',
+    title: 'Remettre un effet a l escompte',
+    description: 'Transfere l effet a recevoir vers les effets escomptes non echus.',
+    treasuryLabel: 'Effets a recevoir' as TreasuryAccountLabel,
+  },
+  {
+    mode: 'effect_discount_credit',
+    label: 'Avis de credit escompte',
+    title: 'Constater l avis de credit',
+    description: 'Enregistre le credit bancaire apres escompte de l effet.',
+    treasuryLabel: 'Banque locale (CDF)',
+  },
+  {
+    mode: 'effect_discount_maturity',
+    label: 'Echeance escompte',
+    title: 'Constater l echeance de l effet escompte',
+    description: 'Apure la dette banque d escompte a l echeance.',
+    treasuryLabel: 'Banque locale (CDF)',
+  },
+  {
+    mode: 'claim_assignment_transfer',
+    label: 'Cession de creance',
+    title: 'Ceder une creance a la banque',
+    description: 'Bascule la creance client vers le compte des creances cedees.',
+    treasuryLabel: 'Banque locale (CDF)',
+  },
+  {
+    mode: 'claim_assignment_credit',
+    label: 'Avis de credit creance cedee',
+    title: 'Constater l avance de la banque',
+    description: 'Enregistre le credit de tresorerie accorde sur la creance cedee.',
+    treasuryLabel: 'Banque locale (CDF)',
+  },
+  {
+    mode: 'claim_assignment_collection',
+    label: 'Encaissement creance cedee',
+    title: 'Constater l encaissement de la creance',
+    description: 'Apure la creance cedee lorsque le client paie effectivement.',
+    treasuryLabel: 'Banque locale (CDF)',
+  },
+  {
+    mode: 'claim_assignment_repayment',
+    label: 'Remboursement banque',
+    title: 'Rembourser le credit de tresorerie',
+    description: 'Rembourse la banque apres encaissement de la creance cedee.',
+    treasuryLabel: 'Banque locale (CDF)',
+  },
+  {
+    mode: 'factoring_transfer',
+    label: 'Cession au factor',
+    title: 'Ceder une creance au factor',
+    description: 'Transfere la creance client au compte d affacturage.',
+    treasuryLabel: 'Banque locale (CDF)',
+  },
+  {
+    mode: 'factoring_credit',
+    label: 'Avis de credit affacturage',
+    title: 'Constater le credit du factor',
+    description: 'Enregistre le credit recu du factor, net des frais le cas echeant.',
+    treasuryLabel: 'Banque locale (CDF)',
+  },
+  {
+    mode: 'effect_unpaid_notice',
+    label: 'Constat effet impaye',
+    title: 'Constater un effet impaye',
+    description: 'Reclasse l effet a recevoir en effet impaye pour suivi de recouvrement.',
+    treasuryLabel: 'Effets a recevoir' as TreasuryAccountLabel,
+  },
+  {
+    mode: 'effect_unpaid_fee',
+    label: 'Frais effet impaye',
+    title: 'Comptabiliser les frais d effet impaye',
+    description: 'Enregistre les frais bancaires lies a un effet impaye.',
+    treasuryLabel: 'Banque locale (CDF)',
+  },
+  {
+    mode: 'endorsement_transfer',
+    label: 'Endossement',
+    title: 'Endosser un effet pour reglement',
+    description: 'Utilise un effet client pour regler une dette court terme ou fournisseur.',
+    treasuryLabel: 'Effets a recevoir' as TreasuryAccountLabel,
+  },
+];
+
+const getShortTermFinanceConfig = (mode: ShortTermFinanceMode) =>
+  SHORT_TERM_FINANCE_CONFIG.find((item) => item.mode === mode) || SHORT_TERM_FINANCE_CONFIG[0];
+
+const buildShortTermFinanceTransaction = (
+  userId: string,
+  invoice: Invoice,
+  amount: number,
+  operationDate: string,
+  treasuryLabel: TreasuryAccountLabel,
+  mode: ShortTermFinanceMode,
+): Partial<Transaction> => {
+  const config = getShortTermFinanceConfig(mode);
+  return {
+    user_id: userId,
+    date: operationDate,
+    label: config.label + ' facture ' + (invoice.number || '') + ' - ' + invoice.customer_name,
+    amount: Number(amount || 0),
+    direction: 'in',
+    category_id: null,
+    categorization_state: 'manual',
+    vat_amount: 0,
+    vat_rate: 0,
+    bank_account_label: treasuryLabel,
+    reconciliated: mode !== 'effect_discount_remittance' && mode !== 'claim_assignment_transfer' && mode !== 'factoring_transfer',
+    document_id: invoice.id,
+    raw: {
+      accounting_event: 'short_term_finance:' + mode,
+      invoice_id: invoice.id,
+      invoice_number: invoice.number,
+      customer_name: invoice.customer_name,
+      treasury_label: treasuryLabel,
+      short_term_finance_mode: mode,
+      source: 'invoices_module',
+    },
+  };
+};
+
 const buildAdvanceApplicationTransaction = (userId: string, invoice: Invoice, sourceAdvance: Invoice, amount: number): Partial<Transaction> => ({
   user_id: userId,
   date: invoice.issue_date,
@@ -508,6 +663,7 @@ export function InvoicesPage() {
   const [paymentBankCreditDraft, setPaymentBankCreditDraft] = useState<InvoicePaymentBankCreditDraft | null>(null);
   const [effectDraft, setEffectDraft] = useState<InvoiceEffectDraft | null>(null);
   const [effectCollectionDraft, setEffectCollectionDraft] = useState<InvoiceEffectCollectionDraft | null>(null);
+  const [shortTermFinanceDraft, setShortTermFinanceDraft] = useState<ShortTermFinanceDraft | null>(null);
   const [creditNoteDraft, setCreditNoteDraft] = useState<CreditNoteDraft | null>(null);
   const [creditNoteRefundDraft, setCreditNoteRefundDraft] = useState<CreditNoteRefundDraft | null>(null);
   const [page, setPage] = useState(1);
@@ -705,7 +861,7 @@ export function InvoicesPage() {
       }
       if (sentCount > 0) {
         reload();
-        toast({ kind: 'info', message: `${sentCount} relance(s) automatique(s) envoyÃƒÂ©e(s).` });
+        toast({ kind: 'info', message: `${sentCount} relance(s) automatique(s) envoyÃ©e(s).` });
       }
     };
     void run();
@@ -936,6 +1092,72 @@ export function InvoicesPage() {
       await Promise.all([reload(), reloadTransactions()]);
       setEffectCollectionDraft(null);
       toast({ kind: 'success', message: 'Encaissement de l effet de commerce comptabilise.' });
+    } catch (error) {
+      toast({ kind: 'error', message: error instanceof Error ? error.message : 'Erreur' });
+    }
+  };
+
+  const openShortTermFinanceModal = (invoice: Invoice, mode: ShortTermFinanceMode) => {
+    const config = getShortTermFinanceConfig(mode);
+    const residualAmount = Math.max(0, Number(invoice.total || 0) - (settledByInvoice.get(invoice.id) || 0) - (creditedByInvoice.get(invoice.id) || 0) - (advanceAppliedByInvoice.get(invoice.id) || 0));
+    const pendingEffectAmount = pendingEffectsByInvoice.get(invoice.id) || 0;
+    const amountBase = (mode.startsWith('effect_discount') || mode === 'effect_unpaid_notice' || mode === 'effect_unpaid_fee' || mode === 'endorsement_transfer') ? pendingEffectAmount : residualAmount;
+    if (amountBase <= 0.01) {
+      toast({ kind: 'info', message: mode.startsWith('effect_discount') ? 'Aucun effet disponible pour cette operation.' : 'Aucun montant disponible pour cette operation de financement.' });
+      return;
+    }
+    setShortTermFinanceDraft({
+      invoice,
+      mode,
+      amount: Number(amountBase.toFixed(2)),
+      operationDate: new Date().toISOString().slice(0, 10),
+      treasuryLabel: config.treasuryLabel || 'Banque locale (CDF)',
+    });
+  };
+
+  const recordShortTermFinance = async () => {
+    if (!user || !shortTermFinanceDraft) return;
+
+    const invoice = shortTermFinanceDraft.invoice;
+    const amount = Number(shortTermFinanceDraft.amount || 0);
+    const residualAmount = Math.max(0, Number(invoice.total || 0) - (settledByInvoice.get(invoice.id) || 0) - (creditedByInvoice.get(invoice.id) || 0) - (advanceAppliedByInvoice.get(invoice.id) || 0));
+    const pendingEffectAmount = pendingEffectsByInvoice.get(invoice.id) || 0;
+    const ceiling = (shortTermFinanceDraft.mode.startsWith('effect_discount') || shortTermFinanceDraft.mode === 'effect_unpaid_notice' || shortTermFinanceDraft.mode === 'effect_unpaid_fee' || shortTermFinanceDraft.mode === 'endorsement_transfer') ? pendingEffectAmount : residualAmount;
+
+    if (amount <= 0) {
+      toast({ kind: 'error', message: 'Le montant doit etre superieur a zero.' });
+      return;
+    }
+    if (amount - ceiling > 0.01) {
+      toast({ kind: 'error', message: 'Le montant saisi depasse le disponible pour cette operation.' });
+      return;
+    }
+    if ((shortTermFinanceDraft.mode === 'effect_discount_credit' || shortTermFinanceDraft.mode === 'effect_discount_maturity' || shortTermFinanceDraft.mode === 'effect_unpaid_fee' || shortTermFinanceDraft.mode === 'claim_assignment_credit' || shortTermFinanceDraft.mode === 'claim_assignment_collection' || shortTermFinanceDraft.mode === 'claim_assignment_repayment' || shortTermFinanceDraft.mode === 'factoring_credit') && shortTermFinanceDraft.treasuryLabel === 'Cheques remis a l encaissement') {
+      toast({ kind: 'error', message: 'Selectionnez un compte final de banque, caisse ou mobile money pour cette operation.' });
+      return;
+    }
+
+    try {
+      await ensureInvoiceIssueTransaction(invoice);
+      await insertTransactions([
+        buildShortTermFinanceTransaction(
+          user.id,
+          invoice,
+          amount,
+          shortTermFinanceDraft.operationDate,
+          shortTermFinanceDraft.treasuryLabel,
+          shortTermFinanceDraft.mode,
+        ),
+      ]);
+      await logAction('invoice.short_term_finance', 'invoice', invoice.id, {
+        number: invoice.number,
+        mode: shortTermFinanceDraft.mode,
+        amount,
+        treasury_account: shortTermFinanceDraft.treasuryLabel,
+      });
+      await Promise.all([reload(), reloadTransactions()]);
+      setShortTermFinanceDraft(null);
+      toast({ kind: 'success', message: getShortTermFinanceConfig(shortTermFinanceDraft.mode).label + ' comptabilise.' });
     } catch (error) {
       toast({ kind: 'error', message: error instanceof Error ? error.message : 'Erreur' });
     }
@@ -1179,9 +1401,9 @@ export function InvoicesPage() {
       await logAction('invoice.remind', 'invoice', invoice.id, { number: invoice.number, reminder_count: reminderCount });
       if (invoice.customer_email) {
         const result = await sendReminderEmail({ ...invoice, reminder_count: reminderCount }, profile, reminderCount);
-        toast(result.success ? { kind: 'success', message: `Relance ${reminderCount} envoyÃƒÂ©e ÃƒÂ  ${invoice.customer_email}.` } : { kind: 'error', message: `Relance enregistrÃƒÂ©e mais e-mail non dÃƒÂ©livrÃƒÂ© : ${result.error}` });
+        toast(result.success ? { kind: 'success', message: `Relance ${reminderCount} envoyÃ©e Ã  ${invoice.customer_email}.` } : { kind: 'error', message: `Relance enregistrÃ©e mais e-mail non dÃ©livrÃ© : ${result.error}` });
       } else {
-        toast({ kind: 'success', message: `Relance ${reminderCount} enregistrÃƒÂ©e.` });
+        toast({ kind: 'success', message: `Relance ${reminderCount} enregistrÃ©e.` });
       }
       reload();
     } catch (error) {
@@ -1269,6 +1491,7 @@ export function InvoicesPage() {
         <div className="card p-5"><div className="flex items-center gap-2 text-sm text-ink-500"><AlertCircle size={16} className="text-danger-600" /> En retard</div><p className="mt-2 font-display text-xl font-extrabold text-ink-950">{formatTotals(stats.overdue)}</p></div>
       </div>}
 
+      {isInvoicesTab && <div className="card p-6"><div className="flex flex-wrap items-start justify-between gap-3"><div><p className="text-xs font-semibold uppercase tracking-[0.2em] text-brand-700">SYSCOHADA</p><h2 className="mt-1 font-display text-lg font-bold text-ink-950">Financement a court terme</h2><p className="mt-1 text-sm text-ink-500">Depuis une facture client, gerez l escompte, la cession de creance et l affacturage sans sortir du parcours de facturation.</p></div><div className="rounded-2xl bg-ink-50 px-4 py-3 text-sm text-ink-700">Point 2 du vademecum: escompte, cession de creances et affacturage</div></div><div className="mt-4 grid gap-3 md:grid-cols-3">{SHORT_TERM_FINANCE_CONFIG.slice(0, 3).map((item) => <div key={item.mode} className="rounded-2xl bg-ink-50 p-4"><p className="text-sm font-semibold text-ink-900">{item.label}</p><p className="mt-1 text-xs text-ink-500">{item.description}</p></div>)}{SHORT_TERM_FINANCE_CONFIG.slice(3, 6).map((item) => <div key={item.mode} className="rounded-2xl bg-ink-50 p-4"><p className="text-sm font-semibold text-ink-900">{item.label}</p><p className="mt-1 text-xs text-ink-500">{item.description}</p></div>)}{SHORT_TERM_FINANCE_CONFIG.slice(6).map((item) => <div key={item.mode} className="rounded-2xl bg-ink-50 p-4"><p className="text-sm font-semibold text-ink-900">{item.label}</p><p className="mt-1 text-xs text-ink-500">{item.description}</p></div>)}</div></div>}
 
       {isInvoicesTab && <div className="card p-6"><div className="flex flex-wrap items-start justify-between gap-3"><div><h2 className="font-display text-base font-bold text-ink-900">File de normalisation DGI</h2><p className="mt-1 text-xs text-ink-500">Suivi operationnel des factures deja pretes a passer a l etape de normalisation locale.</p></div><div className="flex flex-wrap gap-2">{normalizationMissingFields.length === 0 ? <span className="rounded-xl bg-success-50 px-3 py-2 text-sm text-success-800">Profil pret pour NIF / RCCM / DEF</span> : <span className="rounded-xl bg-warning-50 px-3 py-2 text-sm text-warning-800">Champs a completer : {normalizationMissingFields.join(', ')}</span>}</div></div><div className="mt-4 grid gap-3 lg:grid-cols-[1.15fr,0.85fr]"><div className="space-y-2">{normalizationWorkflow.priority.length === 0 ? <div className="rounded-xl bg-ink-50 p-4 text-sm text-ink-500">Aucune facture prete a normaliser pour le moment. Commencez par envoyer une facture avec un profil fiscal RDC complet.</div> : normalizationWorkflow.priority.map((invoice) => <div key={invoice.id} className="rounded-xl bg-ink-50 p-4"><div className="flex items-center justify-between gap-3"><div><p className="text-sm font-semibold text-ink-900">{invoice.number || '-'} - {invoice.customer_name}</p><p className="mt-1 text-xs text-ink-500">Emission {fmtDate(invoice.issue_date)} | {fmtMoney(invoice.total, getInvoiceCurrency(invoice))}</p></div><button onClick={() => normalizeInvoice(invoice)} className="btn-secondary text-xs"><FileSignature size={14} /> Normaliser</button></div></div>)}</div><div className="rounded-2xl bg-brand-50 p-4 ring-1 ring-brand-200"><p className="text-sm font-semibold text-brand-900">Lecture du flux</p><div className="mt-3 space-y-2 text-sm text-brand-900"><div className="rounded-xl bg-white px-3 py-2">Facture standard : {normalizationWorkflow.standard}</div><div className="rounded-xl bg-white px-3 py-2">Prete a normaliser : {normalizationWorkflow.ready}</div><div className="rounded-xl bg-white px-3 py-2">Normalisee localement : {normalizationWorkflow.normalized}</div></div><p className="mt-3 text-xs text-brand-800">La normalisation locale prepare les identifiants, le code et le QR. Le televersement officiel vers la DGI sera branche ensuite via les API DEF/DGI.</p></div></div></div>}
 
@@ -1296,7 +1519,19 @@ export function InvoicesPage() {
         const refundableAmount = Math.max(0, Number(invoice.total || 0) - refundedAmount);
 
         const meta = statusMeta[effectiveStatus];
-        return <tr key={invoice.id} className="hover:bg-ink-50/60 transition"><td className="px-4 py-3 font-mono text-xs text-ink-600">{invoice.number || '-'}</td><td className="px-4 py-3"><div className="flex items-center gap-2.5"><div className="grid h-8 w-8 place-items-center rounded-lg bg-brand-100 text-xs font-semibold text-brand-700">{initials(invoice.customer_name)}</div><div><p className="font-medium text-ink-900">{invoice.customer_name}</p>{invoice.customer_email && <p className="text-xs text-ink-500">{invoice.customer_email}</p>}</div></div></td><td className="px-4 py-3 whitespace-nowrap text-ink-600">{fmtDate(invoice.issue_date)}</td><td className="px-4 py-3 whitespace-nowrap text-ink-600">{fmtDate(invoice.due_date)}</td><td className="px-4 py-3 text-right text-ink-900"><p className="font-semibold">{fmtMoney(invoice.total, invoiceCurrency)}</p>{invoiceUsdAmount ? <><p className="text-xs text-ink-500">{fmtMoney(invoiceUsdAmount, 'USD')}</p><p className="text-[11px] text-ink-400">Taux: 1 USD = {invoiceExchangeRate?.toLocaleString('fr-CD')} CDF</p></> : null}{!invoice.is_quote && <><p className="mt-1 text-xs text-ink-500">Encaisse: {fmtMoney(Math.min(settledAmount, Number(invoice.total || 0)), invoiceCurrency)}</p>{advanceAppliedAmount > 0.01 ? <p className="text-xs text-ink-500">Acompte impute: {fmtMoney(advanceAppliedAmount, invoiceCurrency)}</p> : null}{pendingChequeRemittanceAmount > 0.01 ? <p className="text-xs text-warning-700">Cheque remis en attente: {fmtMoney(pendingChequeRemittanceAmount, invoiceCurrency)}</p> : null}{pendingEffectAmount > 0.01 ? <p className="text-xs text-brand-700">Effet en portefeuille: {fmtMoney(pendingEffectAmount, invoiceCurrency)}</p> : null}<p className="text-xs font-medium text-ink-700">Reste: {fmtMoney(residualAmount, invoiceCurrency)}</p></>}</td><td className="px-4 py-3"><div className="flex flex-col items-start gap-1"><Badge tone={meta.tone}><meta.icon size={12} /> {meta.label}</Badge>{isInvoicesTab && invoice.reminder_count > 0 && <span className="flex items-center gap-1 text-xs text-ink-500"><Bell size={11} /> {invoice.reminder_count} relance(s)</span>}{!invoice.is_quote && <span className="text-xs text-ink-500">{getInvoiceNormalizationLabel(normalizationStatus)}</span>}</div></td><td className="px-4 py-3"><div className="flex items-center justify-end gap-1"><button onClick={() => setViewing(invoice)} className="rounded-lg p-1.5 text-ink-500 hover:bg-ink-100 hover:text-ink-900" title="Apercu"><Eye size={16} /></button>{!invoice.is_quote && normalizationStatus !== 'normalized' && <button onClick={() => normalizeInvoice(invoice)} className="rounded-lg p-1.5 text-accent-700 hover:bg-accent-50" title="Normaliser"><FileSignature size={16} /></button>}{effectiveStatus === 'draft' && <button onClick={() => sendInvoice(invoice)} className="rounded-lg p-1.5 text-brand-600 hover:bg-brand-50" title="Envoyer"><Send size={16} /></button>}{!invoice.is_quote && !isCreditNoteInvoice(invoice) && <button onClick={() => openCreditNoteModal(invoice)} className="rounded-lg p-1.5 text-accent-700 hover:bg-accent-50" title="Creer un avoir"><FileText size={16} /></button>}{isCreditNote && refundableAmount > 0.01 && <button onClick={() => openCreditNoteRefundModal(invoice)} className="rounded-lg p-1.5 text-success-600 hover:bg-success-50" title="Rembourser l avoir"><CheckCircle2 size={16} /></button>}{pendingChequeRemittanceAmount > 0.01 && <button onClick={() => openPaymentBankCreditModal(invoice)} className="rounded-lg p-1.5 text-brand-700 hover:bg-brand-50" title="Constater l avis de credit"><Download size={16} /></button>}{pendingEffectAmount > 0.01 && <button onClick={() => openEffectCollectionModal(invoice)} className="rounded-lg p-1.5 text-brand-700 hover:bg-brand-50" title="Encaisser l effet"><Download size={16} /></button>}{!invoice.is_quote && (effectiveStatus === 'sent' || effectiveStatus === 'overdue' || residualAmount > 0.01) && <><button onClick={() => sendReminder(invoice)} className="rounded-lg p-1.5 text-warning-600 hover:bg-warning-50" title="Relancer"><Bell size={16} /></button><button onClick={() => openPaymentModal(invoice)} className="rounded-lg p-1.5 text-success-600 hover:bg-success-50" title="Enregistrer un paiement"><CheckCircle2 size={16} /></button><button onClick={() => openEffectModal(invoice)} className="rounded-lg p-1.5 text-accent-700 hover:bg-accent-50" title="Transformer en effet de commerce"><FileSignature size={16} /></button></>}{invoice.is_quote && effectiveStatus === 'sent' && <button onClick={() => convertQuote(invoice)} className="rounded-lg p-1.5 text-brand-600 hover:bg-brand-50" title="Convertir en facture"><FileText size={16} /></button>}<button onClick={() => removeInvoice(invoice)} className="rounded-lg p-1.5 text-ink-400 hover:bg-danger-50 hover:text-danger-600" title="Supprimer"><Trash2 size={16} /></button></div></td></tr>;
+        return <tr key={invoice.id} className="hover:bg-ink-50/60 transition"><td className="px-4 py-3 font-mono text-xs text-ink-600">{invoice.number || '-'}</td><td className="px-4 py-3"><div className="flex items-center gap-2.5"><div className="grid h-8 w-8 place-items-center rounded-lg bg-brand-100 text-xs font-semibold text-brand-700">{initials(invoice.customer_name)}</div><div><p className="font-medium text-ink-900">{invoice.customer_name}</p>{invoice.customer_email && <p className="text-xs text-ink-500">{invoice.customer_email}</p>}</div></div></td><td className="px-4 py-3 whitespace-nowrap text-ink-600">{fmtDate(invoice.issue_date)}</td><td className="px-4 py-3 whitespace-nowrap text-ink-600">{fmtDate(invoice.due_date)}</td><td className="px-4 py-3 text-right text-ink-900"><p className="font-semibold">{fmtMoney(invoice.total, invoiceCurrency)}</p>{invoiceUsdAmount ? <><p className="text-xs text-ink-500">{fmtMoney(invoiceUsdAmount, 'USD')}</p><p className="text-[11px] text-ink-400">Taux: 1 USD = {invoiceExchangeRate?.toLocaleString('fr-CD')} CDF</p></> : null}{!invoice.is_quote && <><p className="mt-1 text-xs text-ink-500">Encaisse: {fmtMoney(Math.min(settledAmount, Number(invoice.total || 0)), invoiceCurrency)}</p>{advanceAppliedAmount > 0.01 ? <p className="text-xs text-ink-500">Acompte impute: {fmtMoney(advanceAppliedAmount, invoiceCurrency)}</p> : null}{pendingChequeRemittanceAmount > 0.01 ? <p className="text-xs text-warning-700">Cheque remis en attente: {fmtMoney(pendingChequeRemittanceAmount, invoiceCurrency)}</p> : null}{pendingEffectAmount > 0.01 ? <p className="text-xs text-brand-700">Effet en portefeuille: {fmtMoney(pendingEffectAmount, invoiceCurrency)}</p> : null}<p className="text-xs font-medium text-ink-700">Reste: {fmtMoney(residualAmount, invoiceCurrency)}</p></>}</td><td className="px-4 py-3"><div className="flex flex-col items-start gap-1"><Badge tone={meta.tone}><meta.icon size={12} /> {meta.label}</Badge>{isInvoicesTab && invoice.reminder_count > 0 && <span className="flex items-center gap-1 text-xs text-ink-500"><Bell size={11} /> {invoice.reminder_count} relance(s)</span>}{!invoice.is_quote && <span className="text-xs text-ink-500">{getInvoiceNormalizationLabel(normalizationStatus)}</span>}</div></td><td className="px-4 py-3"><div className="flex items-center justify-end gap-1"><button onClick={() => setViewing(invoice)} className="rounded-lg p-1.5 text-ink-500 hover:bg-ink-100 hover:text-ink-900" title="Apercu"><Eye size={16} /></button>{!invoice.is_quote && normalizationStatus !== 'normalized' && <button onClick={() => normalizeInvoice(invoice)} className="rounded-lg p-1.5 text-accent-700 hover:bg-accent-50" title="Normaliser"><FileSignature size={16} /></button>}{effectiveStatus === 'draft' && <button onClick={() => sendInvoice(invoice)} className="rounded-lg p-1.5 text-brand-600 hover:bg-brand-50" title="Envoyer"><Send size={16} /></button>}{!invoice.is_quote && !isCreditNoteInvoice(invoice) && <button onClick={() => openCreditNoteModal(invoice)} className="rounded-lg p-1.5 text-accent-700 hover:bg-accent-50" title="Creer un avoir"><FileText size={16} /></button>}{isCreditNote && refundableAmount > 0.01 && <button onClick={() => openCreditNoteRefundModal(invoice)} className="rounded-lg p-1.5 text-success-600 hover:bg-success-50" title="Rembourser l avoir"><CheckCircle2 size={16} /></button>}{pendingChequeRemittanceAmount > 0.01 && <button onClick={() => openPaymentBankCreditModal(invoice)} className="rounded-lg p-1.5 text-brand-700 hover:bg-brand-50" title="Constater l avis de credit"><Download size={16} /></button>}{pendingEffectAmount > 0.01 && <button onClick={() => openEffectCollectionModal(invoice)} className="rounded-lg p-1.5 text-brand-700 hover:bg-brand-50" title="Encaisser l effet"><Download size={16} /></button>}{!invoice.is_quote && (effectiveStatus === 'sent' || effectiveStatus === 'overdue' || residualAmount > 0.01) && <><button onClick={() => sendReminder(invoice)} className="rounded-lg p-1.5 text-warning-600 hover:bg-warning-50" title="Relancer"><Bell size={16} /></button><button onClick={() => openPaymentModal(invoice)} className="rounded-lg p-1.5 text-success-600 hover:bg-success-50" title="Enregistrer un paiement"><CheckCircle2 size={16} /></button><button onClick={() => openEffectModal(invoice)} className="rounded-lg p-1.5 text-accent-700 hover:bg-accent-50" title="Transformer en effet de commerce"><FileSignature size={16} /></button></>}{invoice.is_quote && effectiveStatus === 'sent' && <button onClick={() => convertQuote(invoice)} className="rounded-lg p-1.5 text-brand-600 hover:bg-brand-50" title="Convertir en facture"><FileText size={16} /></button>}{pendingEffectAmount > 0.01 && <button onClick={() => openShortTermFinanceModal(invoice, 'effect_discount_remittance')} className="rounded-lg p-1.5 text-brand-700 hover:bg-brand-50" title="Remettre l effet a l escompte"><FileSignature size={16} /></button>}
+{pendingEffectAmount > 0.01 && <button onClick={() => openShortTermFinanceModal(invoice, 'effect_discount_credit')} className="rounded-lg p-1.5 text-brand-700 hover:bg-brand-50" title="Constater l avis de credit escompte"><Download size={16} /></button>}
+{pendingEffectAmount > 0.01 && <button onClick={() => openShortTermFinanceModal(invoice, 'effect_discount_maturity')} className="rounded-lg p-1.5 text-brand-700 hover:bg-brand-50" title="Constater l echeance de l effet escompte"><CheckCircle2 size={16} /></button>}
+{pendingEffectAmount > 0.01 && <button onClick={() => openShortTermFinanceModal(invoice, 'effect_unpaid_notice')} className="rounded-lg p-1.5 text-warning-700 hover:bg-warning-50" title="Constater un effet impaye"><AlertCircle size={16} /></button>}
+{pendingEffectAmount > 0.01 && <button onClick={() => openShortTermFinanceModal(invoice, 'effect_unpaid_fee')} className="rounded-lg p-1.5 text-warning-700 hover:bg-warning-50" title="Comptabiliser les frais d effet impaye"><Download size={16} /></button>}
+{pendingEffectAmount > 0.01 && <button onClick={() => openShortTermFinanceModal(invoice, 'endorsement_transfer')} className="rounded-lg p-1.5 text-accent-700 hover:bg-accent-50" title="Endosser l effet pour reglement"><FileSignature size={16} /></button>}
+{residualAmount > 0.01 && <button onClick={() => openShortTermFinanceModal(invoice, 'claim_assignment_transfer')} className="rounded-lg p-1.5 text-accent-700 hover:bg-accent-50" title="Ceder la creance a la banque"><FileText size={16} /></button>}
+{residualAmount > 0.01 && <button onClick={() => openShortTermFinanceModal(invoice, 'claim_assignment_credit')} className="rounded-lg p-1.5 text-success-700 hover:bg-success-50" title="Constater l avance sur creance cedee"><Download size={16} /></button>}
+{residualAmount > 0.01 && <button onClick={() => openShortTermFinanceModal(invoice, 'claim_assignment_collection')} className="rounded-lg p-1.5 text-brand-700 hover:bg-brand-50" title="Constater l encaissement de la creance cedee"><CheckCircle2 size={16} /></button>}
+{residualAmount > 0.01 && <button onClick={() => openShortTermFinanceModal(invoice, 'claim_assignment_repayment')} className="rounded-lg p-1.5 text-ink-700 hover:bg-ink-100" title="Rembourser la banque sur creance cedee"><Download size={16} /></button>}
+{residualAmount > 0.01 && <button onClick={() => openShortTermFinanceModal(invoice, 'factoring_transfer')} className="rounded-lg p-1.5 text-brand-700 hover:bg-brand-50" title="Ceder la creance au factor"><FileText size={16} /></button>}
+{residualAmount > 0.01 && <button onClick={() => openShortTermFinanceModal(invoice, 'factoring_credit')} className="rounded-lg p-1.5 text-success-700 hover:bg-success-50" title="Constater le credit du factor"><Download size={16} /></button>}
+<button onClick={() => removeInvoice(invoice)} className="rounded-lg p-1.5 text-ink-400 hover:bg-danger-50 hover:text-danger-600" title="Supprimer"><Trash2 size={16} /></button></div></td></tr>;
       })}
       </tbody></table></div><Pagination page={page} totalPages={totalPages} onPageChange={setPage} total={filtered.length} pageSize={pageSize} /></div>
 
@@ -1328,6 +1563,14 @@ export function InvoicesPage() {
         onClose={() => setPaymentBankCreditDraft(null)}
         onSave={recordPaymentBankCredit}
         onChange={setPaymentBankCreditDraft}
+      />
+      <ShortTermFinanceModal
+        draft={shortTermFinanceDraft}
+        residualAmount={shortTermFinanceDraft ? Math.max(0, Number(shortTermFinanceDraft.invoice.total || 0) - (settledByInvoice.get(shortTermFinanceDraft.invoice.id) || 0) - (creditedByInvoice.get(shortTermFinanceDraft.invoice.id) || 0) - (advanceAppliedByInvoice.get(shortTermFinanceDraft.invoice.id) || 0)) : 0}
+        pendingEffectAmount={shortTermFinanceDraft ? (pendingEffectsByInvoice.get(shortTermFinanceDraft.invoice.id) || 0) : 0}
+        onClose={() => setShortTermFinanceDraft(null)}
+        onSave={recordShortTermFinance}
+        onChange={setShortTermFinanceDraft}
       />
       <InvoiceCreditNoteModal
         draft={creditNoteDraft}
@@ -2026,6 +2269,66 @@ function InvoicePaymentBankCreditModal({
   );
 }
 
+function ShortTermFinanceModal({
+  draft,
+  residualAmount,
+  pendingEffectAmount,
+  onClose,
+  onSave,
+  onChange,
+}: {
+  draft: ShortTermFinanceDraft | null;
+  residualAmount: number;
+  pendingEffectAmount: number;
+  onClose: () => void;
+  onSave: () => void;
+  onChange: (draft: ShortTermFinanceDraft | null) => void;
+}) {
+  if (!draft) return null;
+
+  const currency = getInvoiceCurrency(draft.invoice);
+  const config = getShortTermFinanceConfig(draft.mode);
+  const maxAmount = (draft.mode.startsWith('effect_discount') || draft.mode === 'effect_unpaid_notice' || draft.mode === 'effect_unpaid_fee' || draft.mode === 'endorsement_transfer') ? pendingEffectAmount : residualAmount;
+  const needsFinalTreasury = draft.mode !== 'effect_discount_remittance' && draft.mode !== 'effect_unpaid_notice' && draft.mode !== 'endorsement_transfer' && draft.mode !== 'claim_assignment_transfer' && draft.mode !== 'factoring_transfer';
+
+  return (
+    <Modal
+      open={!!draft}
+      onClose={onClose}
+      title={config.title + ' - ' + (draft.invoice.number || '')}
+      size="md"
+      footer={<><button onClick={onClose} className="btn-ghost">Annuler</button><button onClick={onSave} className="btn-primary"><CheckCircle2 size={16} /> Comptabiliser l operation</button></>}
+    >
+      <div className="space-y-4">
+        <div className="rounded-xl bg-ink-50 p-4 text-sm text-ink-700">
+          <p><span className="font-semibold text-ink-900">Client:</span> {draft.invoice.customer_name}</p>
+          <p className="mt-1"><span className="font-semibold text-ink-900">Facture:</span> {draft.invoice.number}</p>
+          <p className="mt-1"><span className="font-semibold text-ink-900">Montant disponible:</span> {fmtMoney(maxAmount, currency)}</p>
+          <p className="mt-1 text-xs text-ink-500">{config.description}</p>
+        </div>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <div>
+            <label className="label">Date de l operation</label>
+            <input type="date" value={draft.operationDate} onChange={(e) => onChange({ ...draft, operationDate: e.target.value })} className="input" />
+          </div>
+          <div>
+            <label className="label">Montant</label>
+            <input type="number" step="0.01" min="0" max={maxAmount} value={draft.amount} onChange={(e) => onChange({ ...draft, amount: Number(e.target.value) })} className="input" />
+          </div>
+          <div className="sm:col-span-2">
+            <label className="label">Compte de tresorerie / support</label>
+            <select value={draft.treasuryLabel} onChange={(e) => onChange({ ...draft, treasuryLabel: e.target.value as TreasuryAccountLabel })} className="input">
+              {(needsFinalTreasury ? TREASURY_ACCOUNT_OPTIONS.filter((option) => option !== 'Cheques remis a l encaissement') : ['Effets a recevoir', ...TREASURY_ACCOUNT_OPTIONS])
+                .filter((option, index, array) => array.indexOf(option) === index)
+                .map((option) => <option key={option} value={option}>{option}</option>)}
+            </select>
+          </div>
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
 function InvoiceCreditNoteModal({
   draft,
   creditedAmount,
@@ -2536,6 +2839,26 @@ function InvoicePreview({ invoice, profile, onClose, previewMode = false }: { in
     </Modal>
   );
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

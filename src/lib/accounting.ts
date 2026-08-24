@@ -1,4 +1,4 @@
-﻿import type { Category, Transaction } from './types';
+import type { Category, Transaction } from './types';
 
 export interface AccountEntry {
   date: string;
@@ -405,6 +405,13 @@ function isInvoiceEffectCollectionTransaction(transaction: Transaction) {
   return getTransactionRawString(transaction, 'accounting_event') === 'invoice_effect_collection';
 }
 
+function isShortTermFinanceTransaction(transaction: Transaction, mode?: string) {
+  const event = getTransactionRawString(transaction, 'accounting_event');
+  if (!event || !event.startsWith('short_term_finance:')) return false;
+  if (!mode) return true;
+  return event === 'short_term_finance:' + mode;
+}
+
 function isAdvanceApplicationTransaction(transaction: Transaction) {
   return getTransactionRawString(transaction, 'accounting_event') === 'advance_application';
 }
@@ -431,8 +438,23 @@ function getTransactionMatchingKey(transaction: Transaction) {
 function getTreasuryAccount(transaction: Transaction): AccountDefinition {
   const label = normalizeLabel(transaction.bank_account_label || transaction.label);
 
+  if (matches(label, ['effets escomptes non echus'])) {
+    return { accountNumber: '415100', accountName: 'Clients, effets escomptes non echus', syscohadaClass: '41', categoryKind: 'asset' };
+  }
   if (matches(label, ['effet', 'effets', 'portefeuille'])) {
     return { accountNumber: '412100', accountName: 'Clients, effets a recevoir', syscohadaClass: '41', categoryKind: 'asset' };
+  }
+  if (matches(label, ['creances cedees'])) {
+    return { accountNumber: '411120', accountName: 'Clients, creances cedees', syscohadaClass: '41', categoryKind: 'asset' };
+  }
+  if (matches(label, ['affacturage', 'factor'])) {
+    return { accountNumber: '471600', accountName: 'Compte d affacturage', syscohadaClass: '47', categoryKind: 'asset' };
+  }
+  if (matches(label, ['credit de tresorerie'])) {
+    return { accountNumber: '561100', accountName: 'Banques, credit de tresorerie', syscohadaClass: '56', categoryKind: 'liability' };
+  }
+  if (matches(label, ['escompte de credit ordinaire', 'banques escompte'])) {
+    return { accountNumber: '565100', accountName: 'Banques, escompte de credit ordinaire', syscohadaClass: '56', categoryKind: 'liability' };
   }
   if (matches(label, ['cheque', 'cheques', 'encaissement', 'remise'])) {
     return { accountNumber: '514100', accountName: 'Cheques remis a l encaissement', syscohadaClass: '51', categoryKind: 'treasury' };
@@ -452,6 +474,23 @@ function getTreasuryAccount(transaction: Transaction): AccountDefinition {
 
 function resolveOperationalAccount(transaction: Transaction, categoryLabel: string): AccountDefinition {
   const text = buildSearchText(categoryLabel, transaction.label, transaction.bank_account_label);
+  const accountingEvent = getTransactionRawString(transaction, 'accounting_event');
+
+  if (accountingEvent === 'investment_purchase') {
+    return { accountNumber: '241100', accountName: 'Materiel et outillage', syscohadaClass: '24', categoryKind: 'asset' };
+  }
+  if (accountingEvent === 'investment_disposal') {
+    return { accountNumber: '822100', accountName: 'Produits de cession d immobilisations', syscohadaClass: '82', categoryKind: 'income' };
+  }
+  if (accountingEvent === 'subsidy_operating_award' || accountingEvent === 'subsidy_operating_collection') {
+    return { accountNumber: '714100', accountName: 'Subvention d exploitation', syscohadaClass: '71', categoryKind: 'income' };
+  }
+  if (accountingEvent === 'subsidy_balance_award' || accountingEvent === 'subsidy_balance_collection') {
+    return { accountNumber: '881100', accountName: 'Subvention d equilibre', syscohadaClass: '88', categoryKind: 'income' };
+  }
+  if (accountingEvent === 'overdraft_fee') {
+    return { accountNumber: '674500', accountName: 'Interets bancaires et sur operations de financement', syscohadaClass: '67', categoryKind: 'expense' };
+  }
 
   if (transaction.direction === 'in') {
     const invoiceKind = getTransactionRawString(transaction, 'invoice_kind');
@@ -1480,6 +1519,7 @@ export function buildAccountingReport(transactions: Transaction[], categories: C
     const category = categories.find((item) => item.id === transaction.category_id);
     const categoryLabel = category?.label || 'Non categorise';
     const text = buildSearchText(categoryLabel, transaction.label, transaction.bank_account_label);
+    const accountingEvent = getTransactionRawString(transaction, 'accounting_event');
     const operationalAccount = resolveOperationalAccount(transaction, categoryLabel);
 
     const payableAccount = getPayableAccount(text);
@@ -1494,7 +1534,22 @@ export function buildAccountingReport(transactions: Transaction[], categories: C
     const lines: AccountEntry[] = [];
 
     if (transaction.direction === 'in') {
-      if (isInvoicePaymentBankCreditTransaction(transaction)) {
+      if (accountingEvent === 'overdraft_credit') {
+        lines.push(buildEntry(transaction, categoryLabel, journalMeta.code, journalMeta.label, settlementAccount, amountTtc, 0));
+        lines.push(buildEntry(transaction, categoryLabel, journalMeta.code, journalMeta.label, { accountNumber: '561100', accountName: 'Banques, credit de tresorerie', syscohadaClass: '56', categoryKind: 'liability' }, 0, amountTtc));
+      } else if (accountingEvent === 'subsidy_operating_award') {
+        lines.push(buildEntry(transaction, categoryLabel, journalMeta.code, journalMeta.label, { accountNumber: '449500', accountName: 'Etat, subv. exploit a recevoir', syscohadaClass: '44', categoryKind: 'asset' }, amountTtc, 0));
+        lines.push(buildEntry(transaction, categoryLabel, journalMeta.code, journalMeta.label, { accountNumber: '714100', accountName: 'Subvention d exploitation', syscohadaClass: '71', categoryKind: 'income' }, 0, amountTtc));
+      } else if (accountingEvent === 'subsidy_operating_collection') {
+        lines.push(buildEntry(transaction, categoryLabel, journalMeta.code, journalMeta.label, settlementAccount, amountTtc, 0));
+        lines.push(buildEntry(transaction, categoryLabel, journalMeta.code, journalMeta.label, { accountNumber: '449500', accountName: 'Etat, subv. exploit a recevoir', syscohadaClass: '44', categoryKind: 'asset' }, 0, amountTtc));
+      } else if (accountingEvent === 'subsidy_balance_award') {
+        lines.push(buildEntry(transaction, categoryLabel, journalMeta.code, journalMeta.label, { accountNumber: '449600', accountName: 'Etat, subv. equilibre a recevoir', syscohadaClass: '44', categoryKind: 'asset' }, amountTtc, 0));
+        lines.push(buildEntry(transaction, categoryLabel, journalMeta.code, journalMeta.label, { accountNumber: '881100', accountName: 'Subvention d equilibre', syscohadaClass: '88', categoryKind: 'income' }, 0, amountTtc));
+      } else if (accountingEvent === 'subsidy_balance_collection') {
+        lines.push(buildEntry(transaction, categoryLabel, journalMeta.code, journalMeta.label, settlementAccount, amountTtc, 0));
+        lines.push(buildEntry(transaction, categoryLabel, journalMeta.code, journalMeta.label, { accountNumber: '449600', accountName: 'Etat, subv. equilibre a recevoir', syscohadaClass: '44', categoryKind: 'asset' }, 0, amountTtc));
+      } else if (isInvoicePaymentBankCreditTransaction(transaction)) {
         lines.push(buildEntry(transaction, categoryLabel, journalMeta.code, journalMeta.label, settlementAccount, amountTtc, 0));
         lines.push(buildEntry(transaction, categoryLabel, journalMeta.code, journalMeta.label, { accountNumber: '514100', accountName: 'Cheques remis a l encaissement', syscohadaClass: '51', categoryKind: 'treasury' }, 0, amountTtc));
       } else if (isInvoiceEffectCollectionTransaction(transaction)) {
@@ -1512,6 +1567,45 @@ export function buildAccountingReport(transactions: Transaction[], categories: C
         if (fxDifferenceAmount > 0.01) {
           lines.push(buildEntry(transaction, categoryLabel, journalMeta.code, journalMeta.label, { accountNumber: '756100', accountName: 'Gains de change', syscohadaClass: '75', categoryKind: 'income' }, 0, fxDifferenceAmount));
         }
+      } else if (isShortTermFinanceTransaction(transaction)) {
+        const mode = getTransactionRawString(transaction, 'short_term_finance_mode') || '';
+        if (mode === 'effect_discount_remittance') {
+          lines.push(buildEntry(transaction, categoryLabel, journalMeta.code, journalMeta.label, { accountNumber: '415100', accountName: 'Clients, effets escomptes non echus', syscohadaClass: '41', categoryKind: 'asset' }, amountTtc, 0));
+          lines.push(buildEntry(transaction, categoryLabel, journalMeta.code, journalMeta.label, { accountNumber: '412100', accountName: 'Clients, effets a recevoir', syscohadaClass: '41', categoryKind: 'asset' }, 0, amountTtc));
+        } else if (mode === 'effect_discount_credit') {
+          lines.push(buildEntry(transaction, categoryLabel, journalMeta.code, journalMeta.label, settlementAccount, amountTtc, 0));
+          lines.push(buildEntry(transaction, categoryLabel, journalMeta.code, journalMeta.label, { accountNumber: '565100', accountName: 'Banques, escompte de credit ordinaire', syscohadaClass: '56', categoryKind: 'liability' }, 0, amountTtc));
+        } else if (mode === 'effect_discount_maturity') {
+          lines.push(buildEntry(transaction, categoryLabel, journalMeta.code, journalMeta.label, { accountNumber: '565100', accountName: 'Banques, escompte de credit ordinaire', syscohadaClass: '56', categoryKind: 'liability' }, amountTtc, 0));
+          lines.push(buildEntry(transaction, categoryLabel, journalMeta.code, journalMeta.label, { accountNumber: '415100', accountName: 'Clients, effets escomptes non echus', syscohadaClass: '41', categoryKind: 'asset' }, 0, amountTtc));
+        } else if (mode === 'claim_assignment_transfer') {
+          lines.push(buildEntry(transaction, categoryLabel, journalMeta.code, journalMeta.label, { accountNumber: '411120', accountName: 'Clients, creances cedees', syscohadaClass: '41', categoryKind: 'asset' }, amountTtc, 0));
+          lines.push(buildEntry(transaction, categoryLabel, journalMeta.code, journalMeta.label, { accountNumber: '411100', accountName: 'Clients', syscohadaClass: '41', categoryKind: 'asset' }, 0, amountTtc));
+        } else if (mode === 'claim_assignment_credit') {
+          lines.push(buildEntry(transaction, categoryLabel, journalMeta.code, journalMeta.label, settlementAccount, amountTtc, 0));
+          lines.push(buildEntry(transaction, categoryLabel, journalMeta.code, journalMeta.label, { accountNumber: '561100', accountName: 'Banques, credit de tresorerie', syscohadaClass: '56', categoryKind: 'liability' }, 0, amountTtc));
+        } else if (mode === 'claim_assignment_collection') {
+          lines.push(buildEntry(transaction, categoryLabel, journalMeta.code, journalMeta.label, settlementAccount, amountTtc, 0));
+          lines.push(buildEntry(transaction, categoryLabel, journalMeta.code, journalMeta.label, { accountNumber: '411120', accountName: 'Clients, creances cedees', syscohadaClass: '41', categoryKind: 'asset' }, 0, amountTtc));
+        } else if (mode === 'claim_assignment_repayment') {
+          lines.push(buildEntry(transaction, categoryLabel, journalMeta.code, journalMeta.label, { accountNumber: '561100', accountName: 'Banques, credit de tresorerie', syscohadaClass: '56', categoryKind: 'liability' }, amountTtc, 0));
+          lines.push(buildEntry(transaction, categoryLabel, journalMeta.code, journalMeta.label, settlementAccount, 0, amountTtc));
+        } else if (mode === 'factoring_transfer') {
+          lines.push(buildEntry(transaction, categoryLabel, journalMeta.code, journalMeta.label, { accountNumber: '471600', accountName: 'Compte d affacturage', syscohadaClass: '47', categoryKind: 'asset' }, amountTtc, 0));
+          lines.push(buildEntry(transaction, categoryLabel, journalMeta.code, journalMeta.label, { accountNumber: '411100', accountName: 'Clients', syscohadaClass: '41', categoryKind: 'asset' }, 0, amountTtc));
+        } else if (mode === 'factoring_credit') {
+          lines.push(buildEntry(transaction, categoryLabel, journalMeta.code, journalMeta.label, settlementAccount, amountTtc, 0));
+          lines.push(buildEntry(transaction, categoryLabel, journalMeta.code, journalMeta.label, { accountNumber: '471600', accountName: 'Compte d affacturage', syscohadaClass: '47', categoryKind: 'asset' }, 0, amountTtc));
+        } else if (mode === 'effect_unpaid_notice') {
+          lines.push(buildEntry(transaction, categoryLabel, journalMeta.code, journalMeta.label, { accountNumber: '413200', accountName: 'Clients, effets impayes', syscohadaClass: '41', categoryKind: 'asset' }, amountTtc, 0));
+          lines.push(buildEntry(transaction, categoryLabel, journalMeta.code, journalMeta.label, { accountNumber: '412100', accountName: 'Clients, effets a recevoir', syscohadaClass: '41', categoryKind: 'asset' }, 0, amountTtc));
+        } else if (mode === 'effect_unpaid_fee') {
+          lines.push(buildEntry(transaction, categoryLabel, journalMeta.code, journalMeta.label, { accountNumber: '631200', accountName: 'Frais sur effets', syscohadaClass: '63', categoryKind: 'expense' }, amountTtc, 0));
+          lines.push(buildEntry(transaction, categoryLabel, journalMeta.code, journalMeta.label, settlementAccount, 0, amountTtc));
+        } else if (mode === 'endorsement_transfer') {
+          lines.push(buildEntry(transaction, categoryLabel, journalMeta.code, journalMeta.label, { accountNumber: '401100', accountName: 'Fournisseurs', syscohadaClass: '40', categoryKind: 'liability' }, amountTtc, 0));
+          lines.push(buildEntry(transaction, categoryLabel, journalMeta.code, journalMeta.label, { accountNumber: '412100', accountName: 'Clients, effets a recevoir', syscohadaClass: '41', categoryKind: 'asset' }, 0, amountTtc));
+        }
       } else if (isAdvanceApplicationTransaction(transaction)) {
         lines.push(buildEntry(transaction, categoryLabel, journalMeta.code, journalMeta.label, { accountNumber: '419100', accountName: 'Clients, avances et acomptes recus', syscohadaClass: '41', categoryKind: 'liability' }, amountTtc, 0));
         lines.push(buildEntry(transaction, categoryLabel, journalMeta.code, journalMeta.label, { accountNumber: '411100', accountName: 'Clients', syscohadaClass: '41', categoryKind: 'asset' }, 0, amountTtc));
@@ -1525,6 +1619,16 @@ export function buildAccountingReport(transactions: Transaction[], categories: C
           if (vatAmount > 0) lines.push(buildEntry(transaction, categoryLabel, journalMeta.code, journalMeta.label, { accountNumber: '443100', accountName: 'TVA facturee', syscohadaClass: '44', categoryKind: 'vat' }, 0, vatAmount));
         }
       }
+    } else if (accountingEvent === 'overdraft_fee') {
+      lines.push(buildEntry(transaction, categoryLabel, journalMeta.code, journalMeta.label, { accountNumber: '674500', accountName: 'Interets bancaires et sur operations de financement', syscohadaClass: '67', categoryKind: 'expense' }, amountTtc, 0));
+      lines.push(buildEntry(transaction, categoryLabel, journalMeta.code, journalMeta.label, settlementAccount, 0, amountTtc));
+    } else if (accountingEvent === 'investment_purchase') {
+      if (amountHt > 0) lines.push(buildEntry(transaction, categoryLabel, journalMeta.code, journalMeta.label, { accountNumber: '241100', accountName: 'Materiel et outillage', syscohadaClass: '24', categoryKind: 'asset' }, amountHt, 0));
+      if (vatAmount > 0) lines.push(buildEntry(transaction, categoryLabel, journalMeta.code, journalMeta.label, { accountNumber: '445600', accountName: 'TVA deductible', syscohadaClass: '44', categoryKind: 'asset' }, vatAmount, 0));
+      lines.push(buildEntry(transaction, categoryLabel, journalMeta.code, journalMeta.label, settlementAccount, 0, amountTtc));
+    } else if (accountingEvent === 'investment_disposal') {
+      lines.push(buildEntry(transaction, categoryLabel, journalMeta.code, journalMeta.label, settlementAccount, amountTtc, 0));
+      lines.push(buildEntry(transaction, categoryLabel, journalMeta.code, journalMeta.label, { accountNumber: '822100', accountName: 'Produits de cession d immobilisations', syscohadaClass: '82', categoryKind: 'income' }, 0, amountTtc));
     } else if (isCreditNoteTransaction(transaction)) {
       const creditNoteAccount = getCreditNoteOperationalAccount(transaction);
       if (amountHt > 0) lines.push(buildEntry(transaction, categoryLabel, journalMeta.code, journalMeta.label, creditNoteAccount, amountHt, 0));
@@ -1640,6 +1744,15 @@ export function generateCSV(report: AccountingReport): string {
   const rows = report.entries.map((entry) => [entry.date, `"${entry.journalCode} - ${entry.journalLabel}"`, `"${entry.accountNumber} - ${entry.accountName}"`, `"${entry.label.replace(/"/g, '""')}"`, entry.debit.toFixed(2), entry.credit.toFixed(2), (entry.debit - entry.credit).toFixed(2)].join(','));
   return [header, ...rows].join('\n');
 }
+
+
+
+
+
+
+
+
+
 
 
 
