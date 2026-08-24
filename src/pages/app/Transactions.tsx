@@ -45,8 +45,34 @@ type GuidedOperationKind =
   | 'subsidy_operating_collection'
   | 'subsidy_balance_award'
   | 'subsidy_balance_collection'
+  | 'investment_advance_payment'
+  | 'investment_invoice_current_received'
+  | 'investment_invoice_noncurrent_received'
+  | 'investment_invoice_payment_current'
+  | 'investment_invoice_payment_noncurrent'
+  | 'software_internal_purchase'
+  | 'investment_subsidy_award'
+  | 'investment_subsidy_capitalization'
+  | 'investment_subsidy_hao'
+  | 'selfproduced_asset_in_progress'
+  | 'selfproduced_asset_complete'
+  | 'selfproduced_software_in_progress'
+  | 'selfproduced_software_complete'
   | 'investment_purchase'
-  | 'investment_disposal';
+  | 'investment_disposal'
+  | 'asset_amortization'
+  | 'software_amortization'
+  | 'declining_amortization'
+  | 'exceptional_amortization'
+  | 'derogatory_amortization'
+  | 'derogatory_reversal'
+  | 'decomposed_amortization'
+  | 'asset_impairment'
+  | 'asset_impairment_reversal'
+  | 'asset_disposal_nbv'
+  | 'treasury_placement_subscription'
+  | 'treasury_placement_interest'
+  | 'treasury_placement_redemption';
 
 type TreasuryLabel = 'Banque locale (CDF)' | 'Banque en devises (USD)' | 'Caisse' | 'Mobile Money';
 
@@ -67,8 +93,34 @@ const GUIDED_OPERATION_CONFIG: Array<{
   { kind: 'subsidy_operating_collection', label: 'Encaissement subvention exploitation', description: 'Enregistrer l encaissement de la subvention d exploitation.', direction: 'in', reconciliated: true, treasuryLabel: 'Banque locale (CDF)', defaultVatRate: 0 },
   { kind: 'subsidy_balance_award', label: 'Attribution subvention d equilibre', description: 'Constater la subvention d equilibre a recevoir.', direction: 'in', reconciliated: false, treasuryLabel: 'Banque locale (CDF)', defaultVatRate: 0 },
   { kind: 'subsidy_balance_collection', label: 'Encaissement subvention d equilibre', description: 'Enregistrer l encaissement de la subvention d equilibre.', direction: 'in', reconciliated: true, treasuryLabel: 'Banque locale (CDF)', defaultVatRate: 0 },
+  { kind: 'investment_advance_payment', label: 'Acompte sur immobilisation', description: 'Verser une avance ou un acompte sur une immobilisation incorporelle ou corporelle.', direction: 'out', reconciliated: true, treasuryLabel: 'Banque locale (CDF)', defaultVatRate: 0 },
+  { kind: 'investment_invoice_current_received', label: 'Facture immobilisation courante', description: 'Reception d une facture d acquisition courante d immobilisation.', direction: 'out', reconciliated: false, treasuryLabel: 'Banque locale (CDF)', defaultVatRate: 16 },
+  { kind: 'investment_invoice_noncurrent_received', label: 'Facture immobilisation non courante', description: 'Reception d une facture d acquisition non courante d immobilisation.', direction: 'out', reconciliated: false, treasuryLabel: 'Banque locale (CDF)', defaultVatRate: 16 },
+  { kind: 'investment_invoice_payment_current', label: 'Reglement facture immobilisation courante', description: 'Regler une dette fournisseur sur acquisition courante d immobilisation.', direction: 'out', reconciliated: true, treasuryLabel: 'Banque locale (CDF)', defaultVatRate: 0 },
+  { kind: 'investment_invoice_payment_noncurrent', label: 'Reglement facture immobilisation non courante', description: 'Regler une dette fournisseur d investissement non courant.', direction: 'out', reconciliated: true, treasuryLabel: 'Banque locale (CDF)', defaultVatRate: 0 },
+  { kind: 'software_internal_purchase', label: 'Logiciel acquis usage interne', description: 'Entrer un logiciel autonome acquis pour usage interne.', direction: 'out', reconciliated: false, treasuryLabel: 'Banque locale (CDF)', defaultVatRate: 0 },
+  { kind: 'investment_subsidy_award', label: 'Attribution subvention d investissement', description: 'Constater une subvention d investissement a recevoir.', direction: 'in', reconciliated: false, treasuryLabel: 'Banque locale (CDF)', defaultVatRate: 0 },
+  { kind: 'investment_subsidy_capitalization', label: 'Subvention d investissement significative', description: 'Rattacher une subvention significative a l immobilisation concernee.', direction: 'in', reconciliated: false, treasuryLabel: 'Banque locale (CDF)', defaultVatRate: 0 },
+  { kind: 'investment_subsidy_hao', label: 'Produit HAO sur immobilisation gratuite', description: 'Constater un produit HAO lorsque la valeur n est pas significative.', direction: 'in', reconciliated: false, treasuryLabel: 'Banque locale (CDF)', defaultVatRate: 0 },
+  { kind: 'selfproduced_asset_in_progress', label: 'Immobilisation corporelle en cours', description: 'Constater une immobilisation corporelle non achevee a la cloture.', direction: 'in', reconciliated: false, treasuryLabel: 'Banque locale (CDF)', defaultVatRate: 0 },
+  { kind: 'selfproduced_asset_complete', label: 'Production immobilisee corporelle', description: 'Constater une immobilisation corporelle produite par l entite pour elle-meme.', direction: 'in', reconciliated: false, treasuryLabel: 'Banque locale (CDF)', defaultVatRate: 16 },
+  { kind: 'selfproduced_software_in_progress', label: 'Logiciel cree en cours', description: 'Constater un logiciel produit par l entite et non acheve a la cloture.', direction: 'in', reconciliated: false, treasuryLabel: 'Banque locale (CDF)', defaultVatRate: 0 },
+  { kind: 'selfproduced_software_complete', label: 'Logiciel cree acheve', description: 'Constater un logiciel produit par l entite pour elle-meme.', direction: 'in', reconciliated: false, treasuryLabel: 'Banque locale (CDF)', defaultVatRate: 16 },
   { kind: 'investment_purchase', label: 'Acquisition d immobilisation', description: 'Saisir un investissement ou achat d immobilisation.', direction: 'out', reconciliated: true, treasuryLabel: 'Banque locale (CDF)', defaultVatRate: 16 },
   { kind: 'investment_disposal', label: 'Cession d immobilisation', description: 'Enregistrer le produit de cession d une immobilisation.', direction: 'in', reconciliated: true, treasuryLabel: 'Banque locale (CDF)', defaultVatRate: 0 },
+  { kind: 'asset_amortization', label: 'Amortissement comptable immobilisation', description: 'Constater la dotation aux amortissements d une immobilisation corporelle.', direction: 'out', reconciliated: false, treasuryLabel: 'Banque locale (CDF)', defaultVatRate: 0 },
+  { kind: 'software_amortization', label: 'Amortissement logiciel', description: 'Constater la dotation aux amortissements d un logiciel.', direction: 'out', reconciliated: false, treasuryLabel: 'Banque locale (CDF)', defaultVatRate: 0 },
+  { kind: 'declining_amortization', label: 'Amortissement degressif fiscal', description: 'Constater une annuite d amortissement degressif.', direction: 'out', reconciliated: false, treasuryLabel: 'Banque locale (CDF)', defaultVatRate: 0 },
+  { kind: 'exceptional_amortization', label: 'Amortissement exceptionnel', description: 'Constater un amortissement exceptionnel selon les conditions fiscales.', direction: 'out', reconciliated: false, treasuryLabel: 'Banque locale (CDF)', defaultVatRate: 0 },
+  { kind: 'derogatory_amortization', label: 'Dotation derogatoire', description: 'Constater la dotation aux provisions reglementees liee a l amortissement derogatoire.', direction: 'out', reconciliated: false, treasuryLabel: 'Banque locale (CDF)', defaultVatRate: 0 },
+  { kind: 'derogatory_reversal', label: 'Reprise derogatoire', description: 'Constater la reprise de provision reglementee.', direction: 'in', reconciliated: false, treasuryLabel: 'Banque locale (CDF)', defaultVatRate: 0 },
+  { kind: 'decomposed_amortization', label: 'Amortissement immobilisation decomposée', description: 'Constater l amortissement d une structure et de son composant.', direction: 'out', reconciliated: false, treasuryLabel: 'Banque locale (CDF)', defaultVatRate: 0 },
+  { kind: 'asset_impairment', label: 'Depreciation d immobilisation', description: 'Constater une depreciation d immobilisation corporelle ou incorporelle.', direction: 'out', reconciliated: false, treasuryLabel: 'Banque locale (CDF)', defaultVatRate: 0 },
+  { kind: 'asset_impairment_reversal', label: 'Reprise de depreciation', description: 'Constater la reprise ulterieure d une depreciation d immobilisation.', direction: 'in', reconciliated: false, treasuryLabel: 'Banque locale (CDF)', defaultVatRate: 0 },
+  { kind: 'asset_disposal_nbv', label: 'VNC de cession d immobilisation', description: 'Sortir la valeur nette comptable lors de la cession courante d immobilisation.', direction: 'out', reconciliated: false, treasuryLabel: 'Banque locale (CDF)', defaultVatRate: 0 },
+  { kind: 'treasury_placement_subscription', label: 'Souscription de placement', description: 'Constater une mise en placement ou un titre de placement.', direction: 'out', reconciliated: true, treasuryLabel: 'Banque locale (CDF)', defaultVatRate: 0 },
+  { kind: 'treasury_placement_interest', label: 'Produit de placement', description: 'Enregistrer les interets ou produits financiers recus sur placement.', direction: 'in', reconciliated: true, treasuryLabel: 'Banque locale (CDF)', defaultVatRate: 0 },
+  { kind: 'treasury_placement_redemption', label: 'Remboursement de placement', description: 'Constater le remboursement ou rachat du placement.', direction: 'in', reconciliated: true, treasuryLabel: 'Banque locale (CDF)', defaultVatRate: 0 },
 ];
 
 const getGuidedOperationConfig = (kind: GuidedOperationKind) => GUIDED_OPERATION_CONFIG.find((item) => item.kind === kind) || GUIDED_OPERATION_CONFIG[0];
@@ -504,7 +556,7 @@ function GuidedOperationsModal({
   };
 
   const current = getGuidedOperationConfig(kind);
-  const investmentMode = kind === 'investment_purchase' || kind === 'investment_disposal';
+  const investmentMode = ['investment_purchase', 'investment_invoice_current_received', 'investment_invoice_noncurrent_received', 'selfproduced_asset_complete', 'selfproduced_software_complete'].includes(kind);
 
   return (
     <Modal
@@ -679,6 +731,11 @@ function AddTransactionModal({
     </Modal>
   );
 }
+
+
+
+
+
 
 
 
