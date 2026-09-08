@@ -43,6 +43,7 @@ export function SettingsPage() {
     postal_code: '',
     city: '',
     phone: '',
+    email: '',
     iban: '',
     bic: '',
   });
@@ -65,6 +66,7 @@ export function SettingsPage() {
       postal_code: profile.postal_code || '',
       city: profile.city || '',
       phone: profile.phone || '',
+      email: profile.email || '',
       iban: profile.iban || '',
       bic: profile.bic || '',
     });
@@ -131,7 +133,7 @@ export function SettingsPage() {
         </div>
       </div>
 
-      <div className="card p-6"><h2 className="font-display text-lg font-bold text-ink-900">Coordonnees</h2><div className="mt-4 grid gap-4 sm:grid-cols-2"><div className="sm:col-span-2"><label className="label">Adresse</label><input value={form.address} onChange={(e) => setForm({ ...form, address: e.target.value })} className="input" placeholder="Ex : 12 avenue de la Justice" /></div><div><label className="label">Code postal / zone</label><input value={form.postal_code} onChange={(e) => setForm({ ...form, postal_code: e.target.value })} className="input" placeholder="Commune / zone" /></div><div><label className="label">Ville</label><input value={form.city} onChange={(e) => setForm({ ...form, city: e.target.value })} className="input" placeholder="Kinshasa" /></div><div><label className="label">Telephone</label><input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} className="input" placeholder="+243 ..." /></div></div></div>
+      <div className="card p-6"><h2 className="font-display text-lg font-bold text-ink-900">Coordonnees</h2><div className="mt-4 grid gap-4 sm:grid-cols-2"><div className="sm:col-span-2"><label className="label">Adresse</label><input value={form.address} onChange={(e) => setForm({ ...form, address: e.target.value })} className="input" placeholder="Ex : 12 avenue de la Justice" /></div><div><label className="label">Code postal / zone</label><input value={form.postal_code} onChange={(e) => setForm({ ...form, postal_code: e.target.value })} className="input" placeholder="Commune / zone" /></div><div><label className="label">Ville</label><input value={form.city} onChange={(e) => setForm({ ...form, city: e.target.value })} className="input" placeholder="Kinshasa" /></div><div><label className="label">Telephone</label><input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} className="input" placeholder="+243 ..." /></div><div><label className="label">E-mail</label><input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} className="input" placeholder="contact@entreprise.cd" /></div></div></div>
       <div className="card p-6"><h2 className="font-display text-lg font-bold text-ink-900">Paiement</h2><p className="text-xs text-ink-500">Coordonnees bancaires affichees sur vos factures.</p><div className="mt-4 grid gap-4 sm:grid-cols-2"><div className="sm:col-span-2"><label className="label">IBAN</label><input value={form.iban} onChange={(e) => setForm({ ...form, iban: e.target.value })} className={`input font-mono ${errors.iban ? 'ring-danger-500/40' : ''}`} placeholder="IBAN" />{errors.iban && <p className="mt-1 text-xs text-danger-600">{errors.iban}</p>}</div><div><label className="label">BIC</label><input value={form.bic} onChange={(e) => setForm({ ...form, bic: e.target.value })} className={`input font-mono ${errors.bic ? 'ring-danger-500/40' : ''}`} placeholder="RAWBCDKIXXX" />{errors.bic && <p className="mt-1 text-xs text-danger-600">{errors.bic}</p>}</div></div></div>
 
       <div className="flex items-center justify-between"><p className="text-xs text-ink-500">{user?.email ? `Connecte en tant que ${user.email}` : ''}</p><button onClick={save} disabled={saving} className="btn-primary">{saving ? <Save size={16} className="animate-pulse" /> : <Check size={16} />}{saving ? 'Enregistrement...' : 'Enregistrer'}</button></div>

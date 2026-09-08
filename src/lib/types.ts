@@ -31,6 +31,7 @@ export interface Profile {
   postal_code: string | null;
   city: string | null;
   phone: string | null;
+  email?: string | null;
   logo_url: string | null;
   iban: string | null;
   bic: string | null;
