@@ -534,18 +534,17 @@ export function TransactionsPage() {
                 <th className="px-4 py-3 font-semibold">Libelle</th>
                 <th className="px-4 py-3 font-semibold text-right">Montant</th>
                 <th className="px-4 py-3 font-semibold text-right">Etat</th>
-                <th className="px-4 py-3 font-semibold text-right">Details</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-ink-100">
               {loading && Array.from({ length: 6 }).map((_, index) => (
                 <tr key={index}>
-                  <td colSpan={5} className="px-4 py-3"><div className="skeleton h-10" /></td>
+                  <td colSpan={4} className="px-4 py-3"><div className="skeleton h-10" /></td>
                 </tr>
               ))}
               {!loading && filtered.length === 0 && (
                 <tr>
-                  <td colSpan={5} className="px-4 py-10 text-center text-ink-500">
+                  <td colSpan={4} className="px-4 py-10 text-center text-ink-500">
                     Aucune transaction. Utilisez l import de mouvements ou le CSV pour commencer.
                   </td>
                 </tr>
@@ -579,7 +578,6 @@ export function TransactionsPage() {
                       </Badge>
                     </div>
                   </td>
-                  <td className="px-4 py-3 text-right text-xs font-medium text-brand-700">Ouvrir</td>
                 </tr>
               ))}
             </tbody>          </table>
