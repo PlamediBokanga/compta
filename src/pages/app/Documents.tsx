@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import {
   FileText,
   ImageIcon,
@@ -47,6 +47,13 @@ interface MatchSuggestion {
   transaction: Transaction;
   score: number;
   reason: string;
+}
+
+interface ExpenseDraft {
+  supplier: string;
+  date: string;
+  amount: number;
+  vatAmount: number;
 }
 
 function findSuggestions(doc: AccountingDocument, transactions: Transaction[]): MatchSuggestion[] {
@@ -117,6 +124,7 @@ export function DocumentsPage() {
   const PAGE_SIZE = 12;
   const [dragOver, setDragOver] = useState(false);
   const [matching, setMatching] = useState<AccountingDocument | null>(null);
+  const [reviewing, setReviewing] = useState<AccountingDocument | null>(null);
 
   const load = async () => {
     setLoading(true);
@@ -214,23 +222,23 @@ export function DocumentsPage() {
     }
   };
 
-  const createExpense = async (doc: AccountingDocument) => {
+  const createExpense = async (doc: AccountingDocument, draft: ExpenseDraft) => {
     if (!user || doc.transaction_id || transactions.some((transaction) => transaction.document_id === doc.id)) return;
-    const amount = Number(doc.amount || 0);
+    const amount = Number(draft.amount || 0);
     if (amount <= 0) {
       toast({ kind: 'error', message: 'Le justificatif ne contient pas encore de montant exploitable.' });
       return;
     }
 
     try {
-      const vatAmount = Number(doc.vat_amount || 0);
+      const vatAmount = Number(draft.vatAmount || 0);
       const netAmount = amount - vatAmount;
       const vatRate = netAmount > 0 ? Number(((vatAmount / netAmount) * 100).toFixed(2)) : 0;
-      const label = `Achat - ${doc.supplier || doc.file_name}`;
+      const label = `Achat - ${draft.supplier || doc.file_name}`;
       const suggestion = suggestCategory({ label, direction: 'out', amount }, categories);
       const [transaction] = await insertTransactions([{
         user_id: user.id,
-        date: doc.date || new Date().toISOString().slice(0, 10),
+        date: draft.date || new Date().toISOString().slice(0, 10),
         label: `Achat - ${doc.supplier || doc.file_name}`,
         amount,
         direction: 'out',
@@ -244,7 +252,7 @@ export function DocumentsPage() {
         raw: {
           source: 'document_ocr',
           document_id: doc.id,
-          supplier: doc.supplier,
+          supplier: draft.supplier,
           file_name: doc.file_name,
           category_suggestion: suggestion.category?.label ?? null,
         },
@@ -542,7 +550,7 @@ export function DocumentsPage() {
                   <div className="flex items-center gap-3">
                     {!expenseTx ? (
                       <button
-                        onClick={() => createExpense(doc)}
+                        onClick={() => setReviewing(doc)}
                         className="text-xs font-medium text-ink-700 hover:text-ink-900"
                       >
                         Creer la depense
@@ -572,6 +580,15 @@ export function DocumentsPage() {
         pageSize={PAGE_SIZE}
       />
 
+      <ExpenseReviewModal
+        doc={reviewing}
+        onClose={() => setReviewing(null)}
+        onConfirm={async (draft) => {
+          if (!reviewing) return;
+          await createExpense(reviewing, draft);
+          setReviewing(null);
+        }}
+      />
       <MatchModal
         doc={matching}
         transactions={transactions}
@@ -582,6 +599,74 @@ export function DocumentsPage() {
   );
 }
 
+function ExpenseReviewModal({
+  doc,
+  onClose,
+  onConfirm,
+}: {
+  doc: AccountingDocument | null;
+  onClose: () => void;
+  onConfirm: (draft: ExpenseDraft) => Promise<void>;
+}) {
+  const [supplier, setSupplier] = useState('');
+  const [date, setDate] = useState('');
+  const [amount, setAmount] = useState('');
+  const [vatAmount, setVatAmount] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (!doc) return;
+    setSupplier(doc.supplier || '');
+    setDate(doc.date || new Date().toISOString().slice(0, 10));
+    setAmount(doc.amount != null ? String(doc.amount) : '');
+    setVatAmount(doc.vat_amount != null ? String(doc.vat_amount) : '0');
+  }, [doc]);
+
+  if (!doc) return null;
+
+  const submit = async (event: FormEvent) => {
+    event.preventDefault();
+    const numericAmount = Number(amount);
+    const numericVat = Number(vatAmount || 0);
+    if (numericAmount <= 0 || numericVat < 0 || numericVat > numericAmount) return;
+    setSaving(true);
+    try {
+      await onConfirm({ supplier: supplier.trim(), date, amount: numericAmount, vatAmount: numericVat });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Modal open={!!doc} onClose={onClose} title="Verifier la depense" size="md">
+      <form onSubmit={submit} className="space-y-4">
+        <p className="text-sm text-ink-500">Verifiez les donnees extraites avant de creer l ecriture comptable.</p>
+        <div>
+          <label className="label">Fournisseur</label>
+          <input value={supplier} onChange={(e) => setSupplier(e.target.value)} className="input" required />
+        </div>
+        <div className="grid gap-3 sm:grid-cols-3">
+          <div>
+            <label className="label">Date</label>
+            <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="input" required />
+          </div>
+          <div>
+            <label className="label">Montant TTC (CDF)</label>
+            <input type="number" min="0" step="0.01" value={amount} onChange={(e) => setAmount(e.target.value)} className="input" required />
+          </div>
+          <div>
+            <label className="label">TVA (CDF)</label>
+            <input type="number" min="0" step="0.01" value={vatAmount} onChange={(e) => setVatAmount(e.target.value)} className="input" />
+          </div>
+        </div>
+        <div className="flex justify-end gap-2 border-t border-ink-100 pt-4">
+          <button type="button" onClick={onClose} className="btn-secondary">Annuler</button>
+          <button type="submit" disabled={saving} className="btn-primary">{saving ? 'Enregistrement...' : 'Creer la depense'}</button>
+        </div>
+      </form>
+    </Modal>
+  );
+}
 function MatchModal({
   doc,
   transactions,
