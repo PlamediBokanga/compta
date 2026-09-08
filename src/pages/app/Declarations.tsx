@@ -25,6 +25,8 @@ const typeMeta: Record<DeclarationType, { label: string; tone: 'brand' | 'accent
   '2042_c_pro': { label: 'Impot du dirigeant DGI', tone: 'neutral' },
 };
 
+const rdcDeclarationTypes: DeclarationType[] = ['tva', 'liasse_2035', 'liasse_2033', 'liasse_2065', 'urssaf', 'das2'];
+
 const statusMeta: Record<DeclarationStatus, { label: string; tone: 'neutral' | 'warning' | 'brand' | 'success' }> = {
   draft: { label: 'Brouillon', tone: 'neutral' },
   ready: { label: 'Prete', tone: 'warning' },
@@ -658,7 +660,7 @@ export function DeclarationsPage() {
         <p className="text-sm font-semibold text-ink-900">Filtrer</p>
         <select value={typeFilter} onChange={(event) => setTypeFilter(event.target.value as 'all' | DeclarationType)} className="input w-auto min-w-[220px]" aria-label="Filtrer par type">
           <option value="all">Tous les types</option>
-          {Object.entries(typeMeta).map(([key, meta]) => <option key={key} value={key}>{meta.label}</option>)}
+          {rdcDeclarationTypes.map((key) => <option key={key} value={key}>{typeMeta[key].label}</option>)}
         </select>
         <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value as 'all' | DeclarationStatus)} className="input w-auto min-w-[170px]" aria-label="Filtrer par statut">
           <option value="all">Tous les statuts</option>
@@ -748,7 +750,7 @@ function CreateDeclarationModal({ open, onClose, onSaved }: { open: boolean; onC
 
   return (
     <Modal open={open} onClose={onClose} title="Nouvelle declaration" footer={<><button onClick={onClose} className="btn-ghost">Annuler</button><button onClick={save} className="btn-primary">Creer</button></>}>
-      <div className="space-y-4"><div><label className="label">Type</label><select value={type} onChange={(e) => setType(e.target.value as DeclarationType)} className="input">{Object.entries(typeMeta).map(([key, meta]) => <option key={key} value={key}>{meta.label}</option>)}</select></div><div><label className="label">Periode</label><input value={periodLabel} onChange={(e) => setPeriodLabel(e.target.value)} className="input" placeholder="Ex : juillet 2026" /></div><div className="grid grid-cols-2 gap-3"><div><label className="label">Echeance</label><input type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} className="input" /></div><div><label className="label">Montant</label><input type="number" step="0.01" value={amount} onChange={(e) => setAmount(e.target.value)} className="input" /></div></div></div>
+      <div className="space-y-4"><div><label className="label">Type</label><select value={type} onChange={(e) => setType(e.target.value as DeclarationType)} className="input">{rdcDeclarationTypes.map((key) => <option key={key} value={key}>{typeMeta[key].label}</option>)}</select></div><div><label className="label">Periode</label><input value={periodLabel} onChange={(e) => setPeriodLabel(e.target.value)} className="input" placeholder="Ex : juillet 2026" /></div><div className="grid grid-cols-2 gap-3"><div><label className="label">Echeance</label><input type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} className="input" /></div><div><label className="label">Montant</label><input type="number" step="0.01" value={amount} onChange={(e) => setAmount(e.target.value)} className="input" /></div></div></div>
     </Modal>
   );
 }
