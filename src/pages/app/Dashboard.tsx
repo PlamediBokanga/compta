@@ -1,4 +1,4 @@
-﻿import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo } from 'react';
 import {
   ArrowDownRight,
   ArrowUpRight,
@@ -126,7 +126,7 @@ export function DashboardPage() {
       <div className="card p-6">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <h2 className="font-display text-lg font-bold text-ink-900">Parcours principal</h2>
+            <h2 className="font-display text-lg font-bold text-ink-900">Votre activite en 4 etapes</h2>
             <p className="mt-1 text-xs text-ink-500">Comme un Indy congolais: peu d ecrans, un ordre simple, et les obligations RDC au bon moment.</p>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -137,16 +137,7 @@ export function DashboardPage() {
         <div className="mt-5 grid gap-3 xl:grid-cols-4">
           {currentFlowSteps.map((step) => <div key={step.id} className="rounded-2xl border border-ink-100 bg-ink-50 p-4"><div className="flex items-start justify-between gap-3"><div><p className="text-sm font-semibold text-ink-900">{step.title}</p><p className="mt-2 text-xs text-ink-500">{step.detail}</p></div><Badge tone={step.tone === 'danger' ? 'danger' : step.tone === 'warning' ? 'warning' : step.tone === 'success' ? 'success' : 'neutral'}>{step.tone === 'danger' ? 'Urgent' : step.tone === 'warning' ? 'A suivre' : step.tone === 'success' ? 'OK' : 'A lancer'}</Badge></div><Link to={step.link} className="mt-4 inline-flex text-sm font-medium text-brand-700 hover:text-brand-800">{step.cta}</Link></div>)}
         </div>
-        <div className="mt-4 rounded-2xl border border-ink-100 bg-white px-4 py-3">
-          <div className="flex flex-wrap items-center gap-2 text-sm text-ink-600">
-            <span className="font-semibold text-ink-900">Acces rapides :</span>
-            <Link to="/app/customers" className="rounded-full bg-ink-100 px-3 py-1 text-ink-700 hover:bg-ink-200">Clients</Link>
-            <Link to="/app/catalog" className="rounded-full bg-ink-100 px-3 py-1 text-ink-700 hover:bg-ink-200">Articles et services</Link>
-            <Link to="/app/documents" className="rounded-full bg-ink-100 px-3 py-1 text-ink-700 hover:bg-ink-200">Justificatifs</Link>
-            <Link to="/app/categories" className="rounded-full bg-ink-100 px-3 py-1 text-ink-700 hover:bg-ink-200">Categories</Link>
-            <Link to="/app/social" className="rounded-full bg-ink-100 px-3 py-1 text-ink-700 hover:bg-ink-200">Social</Link>
-          </div>
-        </div>
+
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -283,5 +274,4 @@ function KpiCard({ icon: Icon, tone, label, value, hint }: { icon: LucideIcon; t
     </div>
   );
 }
-
 

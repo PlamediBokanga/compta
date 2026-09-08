@@ -16,10 +16,12 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 import { useAuth } from '../../lib/auth';
-import { insertDocument, deleteDocument, updateDocument, updateTransaction } from '../../lib/api';
+import { useCategories } from '../../lib/hooks';
+import { insertDocument, insertTransactions, deleteDocument, updateDocument, updateTransaction } from '../../lib/api';
 import { logAction } from '../../lib/audit';
 import { supabase } from '../../lib/supabase';
 import { fmtDate, fmtCDF } from '../../lib/format';
+import { suggestCategory } from '../../lib/categorize';
 import { Badge } from '../../components/ui/Badge';
 import { Modal } from '../../components/ui/Modal';
 import { Pagination } from '../../components/ui/Pagination';
@@ -103,6 +105,7 @@ function findSuggestions(doc: AccountingDocument, transactions: Transaction[]): 
 
 export function DocumentsPage() {
   const { user } = useAuth();
+  const { items: categories } = useCategories();
   const toast = useToast();
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -211,6 +214,60 @@ export function DocumentsPage() {
     }
   };
 
+  const createExpense = async (doc: AccountingDocument) => {
+    if (!user || doc.transaction_id || transactions.some((transaction) => transaction.document_id === doc.id)) return;
+    const amount = Number(doc.amount || 0);
+    if (amount <= 0) {
+      toast({ kind: 'error', message: 'Le justificatif ne contient pas encore de montant exploitable.' });
+      return;
+    }
+
+    try {
+      const vatAmount = Number(doc.vat_amount || 0);
+      const netAmount = amount - vatAmount;
+      const vatRate = netAmount > 0 ? Number(((vatAmount / netAmount) * 100).toFixed(2)) : 0;
+      const label = `Achat - ${doc.supplier || doc.file_name}`;
+      const suggestion = suggestCategory({ label, direction: 'out', amount }, categories);
+      const [transaction] = await insertTransactions([{
+        user_id: user.id,
+        date: doc.date || new Date().toISOString().slice(0, 10),
+        label: `Achat - ${doc.supplier || doc.file_name}`,
+        amount,
+        direction: 'out',
+        category_id: null,
+        categorization_state: 'uncategorized',
+        vat_rate: vatRate,
+        vat_amount: vatAmount,
+        bank_account_label: null,
+        reconciliated: false,
+        document_id: doc.id,
+        raw: {
+          source: 'document_ocr',
+          document_id: doc.id,
+          supplier: doc.supplier,
+          file_name: doc.file_name,
+          category_suggestion: suggestion.category?.label ?? null,
+        },
+      }]);
+      await logAction('document.expense_created', 'document', doc.id, { transaction_id: transaction.id, amount });
+      toast({ kind: 'success', message: 'Depense creee et justificatif rattache.' });
+      load();
+    } catch (e) {
+      toast({ kind: 'error', message: e instanceof Error ? e.message : 'Erreur lors de la creation de la depense.' });
+    }
+  };
+  const categorizeExpense = async (transaction: Transaction, categoryId: string) => {
+    try {
+      await updateTransaction(transaction.id, {
+        category_id: categoryId || null,
+        categorization_state: categoryId ? 'manual' : 'uncategorized',
+      });
+      toast({ kind: 'success', message: categoryId ? 'Categorie de depense mise a jour.' : 'Depense remise a classer.' });
+      load();
+    } catch (e) {
+      toast({ kind: 'error', message: e instanceof Error ? e.message : 'Erreur de categorisation.' });
+    }
+  };
   const stats = useMemo(() => {
     let pending = 0;
     let matched = 0;
@@ -224,17 +281,17 @@ export function DocumentsPage() {
   }, [items]);
 
   const workflow = useMemo(() => {
-    const unmatchedOcr = items.filter((doc) => doc.status === 'ocr_done' && !doc.transaction_id).length;
+    const unmatchedOcr = items.filter((doc) => doc.status === 'ocr_done' && !doc.transaction_id && !transactions.some((transaction) => transaction.document_id === doc.id)).length;
     const withVat = items.filter((doc) => Number(doc.vat_amount) > 0).length;
     const missingFileUrl = items.filter((doc) => !doc.file_url).length;
     return { unmatchedOcr, withVat, missingFileUrl };
-  }, [items]);
+  }, [items, transactions]);
 
   const actionQueue = useMemo(() => {
     return items
-      .filter((doc) => doc.status === 'ocr_done' || doc.status === 'pending')
+      .filter((doc) => (doc.status === 'ocr_done' && !transactions.some((transaction) => transaction.document_id === doc.id)) || doc.status === 'pending')
       .slice(0, 4);
-  }, [items]);
+  }, [items, transactions]);
 
   const totalPages = Math.ceil(items.length / PAGE_SIZE);
   const paged = useMemo(() => {
@@ -246,9 +303,9 @@ export function DocumentsPage() {
     <div className="space-y-5">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="font-display text-2xl font-extrabold tracking-tight text-ink-950">Justificatifs</h1>
+          <h1 className="font-display text-2xl font-extrabold tracking-tight text-ink-950">Achats et justificatifs</h1>
           <p className="mt-1 text-sm text-ink-500">
-            Importez vos recus et factures. L'OCR extrait les donnees et propose un rapprochement automatique.
+            Importez vos depenses, recus et factures fournisseur. L analyse extrait les donnees et propose un rapprochement automatique.
           </p>
         </div>
         <button onClick={() => inputRef.current?.click()} className="btn-primary">
@@ -268,7 +325,7 @@ export function DocumentsPage() {
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.2em] text-brand-700">Parcours principal</p>
-            <h2 className="mt-1 font-display text-lg font-bold text-ink-950">Deposer, lire puis rapprocher les pieces</h2>
+            <h2 className="mt-1 font-display text-lg font-bold text-ink-950">Deposer, classer puis rapprocher les depenses</h2>
             <p className="mt-1 text-sm text-ink-500">
               Les justificatifs servent a fiabiliser la comptabilite, les achats, la TVA deductible et la piste d audit.
             </p>
@@ -388,11 +445,12 @@ export function DocumentsPage() {
         {!loading && items.length === 0 && (
           <div className="col-span-full card p-10 text-center text-ink-500">
             <ImageIcon size={32} className="mx-auto text-ink-300" />
-            <p className="mt-2">Aucun justificatif. Importez vos premiers recus pour voir l'OCR en action.</p>
+            <p className="mt-2">Aucune piece. Importez votre premiere depense pour commencer le classement.</p>
           </div>
         )}
         {paged.map((doc) => {
           const meta = statusMeta[doc.status];
+          const expenseTx = transactions.find((t) => t.document_id === doc.id);
           const matchedTx = transactions.find((t) => t.id === doc.transaction_id);
           return (
             <div key={doc.id} className="card group p-4 transition hover:shadow-pop">
@@ -443,10 +501,29 @@ export function DocumentsPage() {
                   {Number(doc.vat_amount) > 0 && (
                     <p className="text-ink-500">TVA : {fmtCDF(Number(doc.vat_amount))}</p>
                   )}
+                  {expenseTx && (
+                    <div className="mt-2 border-t border-ink-200 pt-2">
+                      <div className="flex items-center gap-1.5 text-ink-700">
+                        <CheckCircle2 size={12} />
+                        <span className="truncate">Depense comptable creee</span>
+                      </div>
+                      <select
+                        value={expenseTx.category_id ?? ''}
+                        onChange={(e) => categorizeExpense(expenseTx, e.target.value)}
+                        className="input mt-2 h-8 py-1 text-xs"
+                        aria-label="Categorie de la depense"
+                      >
+                        <option value="">A classer plus tard</option>
+                        {categories.filter((category) => category.kind === 'expense').map((category) => (
+                          <option key={category.id} value={category.id}>{category.label}</option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
                   {matchedTx && (
                     <div className="mt-2 flex items-center gap-1.5 border-t border-ink-200 pt-2 text-success-700">
                       <Link2 size={12} />
-                      <span className="truncate">{matchedTx.label}</span>
+                      <span className="truncate">Paiement rapproche : {matchedTx.label}</span>
                     </div>
                   )}
                 </div>
@@ -462,12 +539,20 @@ export function DocumentsPage() {
                   {meta.label}
                 </Badge>
                 {doc.status === 'ocr_done' && (
-                  <button
-                    onClick={() => setMatching(doc)}
-                    className="text-xs font-medium text-brand-700 hover:text-brand-800"
-                  >
-                    Rapprocher
-                  </button>
+                  <div className="flex items-center gap-3">
+                    <button
+                      onClick={() => createExpense(doc)}
+                      className="text-xs font-medium text-ink-700 hover:text-ink-900"
+                    >
+                      Creer la depense
+                    </button>
+                    <button
+                      onClick={() => setMatching(doc)}
+                      className="text-xs font-medium text-brand-700 hover:text-brand-800"
+                    >
+                      Rapprocher
+                    </button>
+                  </div>
                 )}
               </div>
             </div>
@@ -626,6 +711,4 @@ function simulateOcr(_fileName: string): {
   const date = new Date(Date.now() - Math.floor(Math.random() * 30) * 86400000).toISOString().slice(0, 10);
   return { amount, date, supplier, vat_amount: vatAmount };
 }
-
-
 
