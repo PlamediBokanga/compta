@@ -434,6 +434,16 @@ export function TransactionsPage() {
     reload();
   };
 
+  const toggleReconciliation = async (transaction: Transaction) => {
+    try {
+      await updateTransaction(transaction.id, { reconciliated: !transaction.reconciliated });
+      reload();
+      toast({ kind: 'success', message: transaction.reconciliated ? 'Mouvement remis a controler.' : 'Mouvement marque comme rapproche.' });
+    } catch (error) {
+      toast({ kind: 'error', message: error instanceof Error ? error.message : 'Mise a jour impossible.' });
+    }
+  };
+
   return (
     <div className="space-y-5">
       <div className="flex flex-wrap items-end justify-between gap-3">
@@ -646,9 +656,15 @@ export function TransactionsPage() {
                         {transaction.categorization_state === 'auto' && <Sparkles size={12} />}
                         {stateLabel[transaction.categorization_state]}
                       </Badge>
-                      <Badge tone={transaction.reconciliated ? 'success' : 'warning'}>
-                        {transaction.reconciliated ? 'Rapproche' : 'A rapprocher'}
-                      </Badge>
+                      <button
+                        type="button"
+                        onClick={() => toggleReconciliation(transaction)}
+                        title={transaction.reconciliated ? 'Remettre a controler' : 'Marquer comme rapproche'}
+                      >
+                        <Badge tone={transaction.reconciliated ? 'success' : 'warning'}>
+                          {transaction.reconciliated ? 'Rapproche' : 'A rapprocher'}
+                        </Badge>
+                      </button>
                     </div>
                   </td>
                 </tr>
