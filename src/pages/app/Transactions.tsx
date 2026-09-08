@@ -306,6 +306,7 @@ export function TransactionsPage() {
   const [search, setSearch] = useState('');
   const [dirFilter, setDirFilter] = useState<Direction | 'all'>('all');
   const [catFilter, setCatFilter] = useState<string>('all');
+  const [reconciliationFilter, setReconciliationFilter] = useState<'all' | 'reconciled' | 'pending'>('all');
   const [importing, setImporting] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
   const [guidedOpen, setGuidedOpen] = useState(false);
@@ -318,10 +319,12 @@ export function TransactionsPage() {
       if (dirFilter !== 'all' && transaction.direction !== dirFilter) return false;
       if (catFilter === 'uncategorized' && transaction.category_id) return false;
       if (catFilter !== 'all' && catFilter !== 'uncategorized' && transaction.category_id !== catFilter) return false;
+      if (reconciliationFilter === 'reconciled' && !transaction.reconciliated) return false;
+      if (reconciliationFilter === 'pending' && transaction.reconciliated) return false;
       if (search && !transaction.label.toLowerCase().includes(search.toLowerCase())) return false;
       return true;
     });
-  }, [transactions, search, dirFilter, catFilter]);
+  }, [transactions, search, dirFilter, catFilter, reconciliationFilter]);
 
   const totals = useMemo(() => {
     let income = 0;
@@ -353,7 +356,7 @@ export function TransactionsPage() {
     return filtered.slice(start, start + PAGE_SIZE);
   }, [filtered, page]);
 
-  useEffect(() => setPage(1), [search, dirFilter, catFilter]);
+  useEffect(() => setPage(1), [search, dirFilter, catFilter, reconciliationFilter]);
 
   const runImport = async () => {
     if (!user) return;
@@ -554,6 +557,11 @@ export function TransactionsPage() {
               ))}
             </div>
           </div>
+          <select value={reconciliationFilter} onChange={(e) => { setReconciliationFilter(e.target.value as typeof reconciliationFilter); setPage(1); }} className="input w-auto">
+            <option value="all">Tous les rapprochements</option>
+            <option value="pending">A rapprocher</option>
+            <option value="reconciled">Rapproches</option>
+          </select>
           <select value={catFilter} onChange={(e) => setCatFilter(e.target.value)} className="input w-auto">
             <option value="all">Toutes categories</option>
             <option value="uncategorized">Non categorisees</option>
@@ -633,10 +641,15 @@ export function TransactionsPage() {
                     {Number(transaction.vat_amount) > 0 ? fmtCDF(transaction.vat_amount) : '-'}
                   </td>
                   <td className="px-4 py-3 text-right">
-                    <Badge tone={stateTone[transaction.categorization_state]}>
-                      {transaction.categorization_state === 'auto' && <Sparkles size={12} />}
-                      {stateLabel[transaction.categorization_state]}
-                    </Badge>
+                    <div className="flex flex-wrap justify-end gap-1.5">
+                      <Badge tone={stateTone[transaction.categorization_state]}>
+                        {transaction.categorization_state === 'auto' && <Sparkles size={12} />}
+                        {stateLabel[transaction.categorization_state]}
+                      </Badge>
+                      <Badge tone={transaction.reconciliated ? 'success' : 'warning'}>
+                        {transaction.reconciliated ? 'Rapproche' : 'A rapprocher'}
+                      </Badge>
+                    </div>
                   </td>
                 </tr>
               ))}
