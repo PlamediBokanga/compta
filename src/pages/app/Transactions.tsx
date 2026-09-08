@@ -341,7 +341,9 @@ export function TransactionsPage() {
     const suggested = transactions.filter((transaction) => transaction.categorization_state === 'suggested').length;
     const categorized = transactions.filter((transaction) => !!transaction.category_id).length;
     const vatTracked = transactions.filter((transaction) => Number(transaction.vat_amount) > 0).length;
-    return { uncategorized, suggested, categorized, vatTracked, total: transactions.length };
+    const reconciled = transactions.filter((transaction) => transaction.reconciliated).length;
+    const pendingReconciliation = transactions.length - reconciled;
+    return { uncategorized, suggested, categorized, vatTracked, reconciled, pendingReconciliation, total: transactions.length };
   }, [transactions]);
 
   const priorities = useMemo(() => {
@@ -496,6 +498,9 @@ export function TransactionsPage() {
             <div className="rounded-xl bg-success-50 px-3 py-2 text-sm text-success-800">
               <span className="font-semibold">{workflow.categorized}</span> deja classes
             </div>
+            <div className="rounded-xl bg-ink-100 px-3 py-2 text-sm text-ink-700">
+              <span className="font-semibold">{workflow.pendingReconciliation}</span> a rapprocher
+            </div>
           </div>
         </div>
         <div className="mt-4 grid gap-3 md:grid-cols-4">
@@ -512,8 +517,8 @@ export function TransactionsPage() {
             <p className="mt-1 text-sm font-semibold text-ink-900">{workflow.vatTracked} ligne(s) avec TVA suivie</p>
           </div>
           <div className="rounded-2xl bg-ink-50 p-3">
-            <p className="text-xs text-ink-500">4. Passer a la declaration</p>
-            <p className="mt-1 text-sm font-semibold text-ink-900">Base prete pour TVA, IPR et social</p>
+            <p className="text-xs text-ink-500">4. Controler les rapprochements</p>
+            <p className="mt-1 text-sm font-semibold text-ink-900">{workflow.pendingReconciliation} mouvement(s) a verifier</p>
           </div>
         </div>
         {priorities.length > 0 && (
