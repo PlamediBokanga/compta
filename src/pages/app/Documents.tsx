@@ -313,7 +313,7 @@ export function DocumentsPage() {
     <div className="space-y-5">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="font-display text-2xl font-extrabold tracking-tight text-ink-950">Achats et justificatifs</h1>
+          <h1 className="font-display text-2xl font-extrabold tracking-tight text-ink-950">Documents et justificatifs</h1>
           <p className="mt-1 text-sm text-ink-500">
             Importez vos depenses, recus et factures fournisseur. L analyse extrait les donnees et propose un rapprochement automatique.
           </p>

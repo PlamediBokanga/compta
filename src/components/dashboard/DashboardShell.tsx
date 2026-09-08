@@ -49,7 +49,7 @@ const navSections: NavSection[] = [
     title: 'Flux entrants',
     items: [
       { to: '/app/invoices', label: 'Ventes et factures', icon: FileText },
-      { to: '/app/documents', label: 'Achats et justificatifs', icon: FileText },
+      { to: '/app/documents', label: 'Documents et justificatifs', icon: FileText },
       { to: '/app/transactions', label: 'Banque et tresorerie', icon: BarChart3 },
     ],
   },
