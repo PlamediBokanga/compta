@@ -2,7 +2,6 @@ import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import {
   FileText,
   ImageIcon,
-  Link2,
   Paperclip,
   ScanLine,
   Sparkles,
@@ -421,8 +420,7 @@ export function DocumentsPage() {
         {paged.map((doc) => {
           const meta = statusMeta[doc.status];
           const expenseTx = transactions.find((t) => t.document_id === doc.id);
-          const matchedTx = transactions.find((t) => t.id === doc.transaction_id);
-          return (
+                  return (
             <div key={doc.id} onClick={() => setSelectedDocument(doc)} className="card group cursor-pointer p-4 transition hover:shadow-pop">
               <div className="flex items-start justify-between">
                 <div className="grid h-10 w-10 place-items-center rounded-lg bg-ink-100 text-ink-600">
@@ -461,47 +459,10 @@ export function DocumentsPage() {
                 </a>
               )}
 
-              {doc.status === 'ocr_done' || doc.status === 'matched' ? (
-                <div className="mt-3 rounded-lg bg-ink-50 p-3 text-xs">
-                  {doc.supplier && <p className="font-medium text-ink-800">{doc.supplier}</p>}
-                  {doc.date && <p className="text-ink-500">{fmtDate(doc.date)}</p>}
-                  {doc.amount != null && (
-                    <p className="mt-1 font-semibold text-ink-900">{fmtCDF(Number(doc.amount))}</p>
-                  )}
-                  {Number(doc.vat_amount) > 0 && (
-                    <p className="text-ink-500">TVA : {fmtCDF(Number(doc.vat_amount))}</p>
-                  )}
-                  {expenseTx && (
-                    <div className="mt-2 border-t border-ink-200 pt-2">
-                      <div className="flex items-center gap-1.5 text-ink-700">
-                        <CheckCircle2 size={12} />
-                        <span className="truncate">Depense comptable creee</span>
-                      </div>
-                      <select
-                        value={expenseTx.category_id ?? ''}
-                        onChange={(e) => categorizeExpense(expenseTx, e.target.value)}
-                        className="input mt-2 h-8 py-1 text-xs"
-                        aria-label="Categorie de la depense"
-                      >
-                        <option value="">A classer plus tard</option>
-                        {categories.filter((category) => category.kind === 'expense').map((category) => (
-                          <option key={category.id} value={category.id}>{category.label}</option>
-                        ))}
-                      </select>
-                    </div>
-                  )}
-                  {matchedTx && (
-                    <div className="mt-2 flex items-center gap-1.5 border-t border-ink-200 pt-2 text-success-700">
-                      <Link2 size={12} />
-                      <span className="truncate">Paiement rapproche : {matchedTx.label}</span>
-                    </div>
-                  )}
-                </div>
-              ) : (
-                <div className="mt-3 rounded-lg bg-ink-50 p-3 text-xs text-ink-500">
-                  {doc.status === 'pending' ? 'En attente de traitement...' : 'Rejete'}
-                </div>
-              )}
+              <div className="mt-3 flex items-center justify-between gap-3 text-sm">
+                <span className="truncate text-ink-700">{doc.supplier || 'Fournisseur non renseigne'}</span>
+                <span className="shrink-0 font-semibold text-ink-900">{doc.amount != null ? fmtCDF(Number(doc.amount)) : '-'}</span>
+              </div>
 
               <div className="mt-3 flex items-center justify-between">
                 <Badge tone={meta.tone}>
