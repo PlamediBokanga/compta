@@ -200,7 +200,7 @@ const GUIDED_OPERATION_CONFIG: Array<{
   { kind: 'exceptional_amortization', label: 'Amortissement exceptionnel', description: 'Constater un amortissement exceptionnel selon les conditions fiscales.', direction: 'out', reconciliated: false, treasuryLabel: 'Banque locale (CDF)', defaultVatRate: 0 },
   { kind: 'derogatory_amortization', label: 'Dotation derogatoire', description: 'Constater la dotation aux provisions reglementees liee a l amortissement derogatoire.', direction: 'out', reconciliated: false, treasuryLabel: 'Banque locale (CDF)', defaultVatRate: 0 },
   { kind: 'derogatory_reversal', label: 'Reprise derogatoire', description: 'Constater la reprise de provision reglementee.', direction: 'in', reconciliated: false, treasuryLabel: 'Banque locale (CDF)', defaultVatRate: 0 },
-  { kind: 'decomposed_amortization', label: 'Amortissement immobilisation decomposée', description: 'Constater l amortissement d une structure et de son composant.', direction: 'out', reconciliated: false, treasuryLabel: 'Banque locale (CDF)', defaultVatRate: 0 },
+  { kind: 'decomposed_amortization', label: 'Amortissement immobilisation decomposï¿½e', description: 'Constater l amortissement d une structure et de son composant.', direction: 'out', reconciliated: false, treasuryLabel: 'Banque locale (CDF)', defaultVatRate: 0 },
   { kind: 'asset_impairment', label: 'Depreciation d immobilisation', description: 'Constater une depreciation d immobilisation corporelle ou incorporelle.', direction: 'out', reconciliated: false, treasuryLabel: 'Banque locale (CDF)', defaultVatRate: 0 },
   { kind: 'asset_impairment_reversal', label: 'Reprise de depreciation', description: 'Constater la reprise ulterieure d une depreciation d immobilisation.', direction: 'in', reconciliated: false, treasuryLabel: 'Banque locale (CDF)', defaultVatRate: 0 },
   { kind: 'asset_disposal_nbv', label: 'VNC de cession d immobilisation', description: 'Sortir la valeur nette comptable lors de la cession courante d immobilisation.', direction: 'out', reconciliated: false, treasuryLabel: 'Banque locale (CDF)', defaultVatRate: 0 },
@@ -435,7 +435,7 @@ export function TransactionsPage() {
     <div className="space-y-5">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="font-display text-2xl font-extrabold tracking-tight text-ink-950">Transactions</h1>
+          <h1 className="font-display text-2xl font-extrabold tracking-tight text-ink-950">Banque et tresorerie</h1>
           <p className="mt-1 text-sm text-ink-500">
             {transactions.length} transactions | {transactions.filter((transaction) => !transaction.category_id).length} a categoriser
           </p>
@@ -443,7 +443,7 @@ export function TransactionsPage() {
         <div className="flex flex-wrap gap-2">
           <button onClick={runImport} disabled={importing} className="btn-secondary">
             {importing ? <RefreshCw size={16} className="animate-spin" /> : <Upload size={16} />}
-            {importing ? 'Import...' : 'Importer des mouvements'}
+            {importing ? 'Import...' : 'Importer des mouvements bancaires'}
           </button>
           <button onClick={() => csvInputRef.current?.click()} disabled={importing} className="btn-secondary">
             <FileSpreadsheet size={16} /> Import CSV
@@ -468,9 +468,9 @@ export function TransactionsPage() {
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.2em] text-brand-700">Parcours principal</p>
-            <h2 className="mt-1 font-display text-lg font-bold text-ink-950">Importer, classer et preparer la TVA</h2>
+            <h2 className="mt-1 font-display text-lg font-bold text-ink-950">Importer, classer et controler la tresorerie</h2>
             <p className="mt-1 text-sm text-ink-500">
-              Ici, le plus important est de traiter d abord les mouvements non classes avant la cloture et les declarations.
+              Ici, vous importez les releves, classez les mouvements et preparez les controles comptables et fiscaux.
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -488,7 +488,7 @@ export function TransactionsPage() {
         <div className="mt-4 grid gap-3 md:grid-cols-4">
           <div className="rounded-2xl bg-ink-50 p-3">
             <p className="text-xs text-ink-500">1. Importer la banque</p>
-            <p className="mt-1 text-sm font-semibold text-ink-900">Import test ou import CSV</p>
+            <p className="mt-1 text-sm font-semibold text-ink-900">Releve bancaire ou import CSV</p>
           </div>
           <div className="rounded-2xl bg-ink-50 p-3">
             <p className="text-xs text-ink-500">2. Classer les mouvements</p>
