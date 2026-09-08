@@ -861,7 +861,7 @@ export function InvoicesPage() {
       }
       if (sentCount > 0) {
         reload();
-        toast({ kind: 'info', message: `${sentCount} relance(s) automatique(s) envoyÃ©e(s).` });
+        toast({ kind: 'info', message: `${sentCount} relance(s) automatique(s) envoyée(s).` });
       }
     };
     void run();
@@ -1401,9 +1401,9 @@ export function InvoicesPage() {
       await logAction('invoice.remind', 'invoice', invoice.id, { number: invoice.number, reminder_count: reminderCount });
       if (invoice.customer_email) {
         const result = await sendReminderEmail({ ...invoice, reminder_count: reminderCount }, profile, reminderCount);
-        toast(result.success ? { kind: 'success', message: `Relance ${reminderCount} envoyÃ©e Ã  ${invoice.customer_email}.` } : { kind: 'error', message: `Relance enregistrÃ©e mais e-mail non dÃ©livrÃ© : ${result.error}` });
+        toast(result.success ? { kind: 'success', message: `Relance ${reminderCount} envoyée à ${invoice.customer_email}.` } : { kind: 'error', message: `Relance enregistrée mais e-mail non délivré : ${result.error}` });
       } else {
-        toast({ kind: 'success', message: `Relance ${reminderCount} enregistrÃ©e.` });
+        toast({ kind: 'success', message: `Relance ${reminderCount} enregistrée.` });
       }
       reload();
     } catch (error) {
