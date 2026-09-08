@@ -1586,7 +1586,27 @@ export function InvoicesPage() {
         onSave={recordCreditNoteRefund}
         onChange={setCreditNoteRefundDraft}
       />
-      <InvoicePreview invoice={viewing} profile={profile} onClose={() => setViewing(null)} previewMode={false} />
+      <InvoicePreview
+        invoice={viewing}
+        profile={profile}
+        onClose={() => setViewing(null)}
+        previewMode={false}
+        onNormalize={viewing && !viewing.is_quote && getInvoiceNormalizationStatus(viewing, profile) !== 'normalized'
+          ? () => { void normalizeInvoice(viewing); setViewing(null); }
+          : undefined}
+        onSend={viewing && effectiveInvoiceStatus(viewing) === 'draft'
+          ? () => { void sendInvoice(viewing); setViewing(null); }
+          : undefined}
+        onPayment={viewing && !viewing.is_quote && Math.max(
+          0,
+          Number(viewing.total || 0)
+            - (settledByInvoice.get(viewing.id) || 0)
+            - (creditedByInvoice.get(viewing.id) || 0)
+            - (advanceAppliedByInvoice.get(viewing.id) || 0),
+        ) > 0.01
+          ? () => { openPaymentModal(viewing); setViewing(null); }
+          : undefined}
+      />
     </div>
   );
 }
@@ -2446,7 +2466,7 @@ function InvoiceCreditNoteRefundModal({
     </Modal>
   );
 }
-function InvoicePreview({ invoice, profile, onClose, previewMode = false }: { invoice: Invoice | null; profile: Profile | null; onClose: () => void; previewMode?: boolean }) {
+function InvoicePreview({ invoice, profile, onClose, previewMode = false, onNormalize, onSend, onPayment }: { invoice: Invoice | null; profile: Profile | null; onClose: () => void; previewMode?: boolean; onNormalize?: () => void; onSend?: () => void; onPayment?: () => void }) {
   if (!invoice) return null;
   const verificationCode = buildVerificationCode(invoice, profile);
   const qrPayload = buildInvoiceQrPayload(invoice, profile);
@@ -2678,7 +2698,15 @@ function InvoicePreview({ invoice, profile, onClose, previewMode = false }: { in
       onClose={onClose}
       title={previewMode ? `Apercu ${invoice.is_quote ? 'du devis' : 'de la facture'} ${invoice.number || ''}` : `${invoice.is_quote ? 'Devis' : 'Facture'} ${invoice.number || ''}`}
       size="xl"
-      footer={<><button onClick={onClose} className="btn-ghost">Fermer</button><button onClick={handlePrintInvoice} className="btn-secondary"><Download size={16} /> Imprimer</button></>}
+      footer={
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          {onNormalize && <button onClick={onNormalize} className="btn-secondary"><FileSignature size={16} /> Normaliser</button>}
+          {onSend && <button onClick={onSend} className="btn-secondary"><Send size={16} /> Envoyer</button>}
+          {onPayment && <button onClick={onPayment} className="btn-secondary"><CheckCircle2 size={16} /> Enregistrer un paiement</button>}
+          <button onClick={onClose} className="btn-ghost">Fermer</button>
+          <button onClick={handlePrintInvoice} className="btn-secondary"><Download size={16} /> Imprimer</button>
+        </div>
+      }
     >
       <div className="print-invoice-root mx-auto max-w-[960px] space-y-5 bg-white text-ink-900 print:w-full">
         <div className="print-invoice-page rounded-2xl border border-ink-300 bg-white p-6 shadow-sm print:break-inside-avoid">
