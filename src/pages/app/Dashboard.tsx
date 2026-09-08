@@ -80,40 +80,6 @@ export function DashboardPage() {
   const overdueInvoices = invoices.filter((invoice) => !invoice.is_quote && effectiveInvoiceStatus(invoice) === 'overdue');
   const draftInvoices = invoices.filter((invoice) => !invoice.is_quote && effectiveInvoiceStatus(invoice) === 'draft');
   const unpaidInvoices = invoices.filter((invoice) => !invoice.is_quote && ['sent', 'overdue'].includes(effectiveInvoiceStatus(invoice)));
-  const currentFlowSteps = [
-    {
-      id: 'invoice',
-      title: '1. Facturer',
-      detail: draftInvoices.length > 0 ? `${draftInvoices.length} brouillon(s) a envoyer` : invoices.length > 0 ? 'Vos factures sont deja lancees' : 'Creez votre premiere facture',
-      tone: draftInvoices.length > 0 ? 'warning' : invoices.length > 0 ? 'success' : 'neutral',
-      cta: draftInvoices.length > 0 ? 'Finaliser les factures' : 'Aller aux factures',
-      link: '/app/invoices',
-    },
-    {
-      id: 'cash',
-      title: '2. Encaisser et suivre',
-      detail: overdueInvoices.length > 0 ? `${overdueInvoices.length} facture(s) en retard` : unpaidInvoices.length > 0 ? `${unpaidInvoices.length} facture(s) a suivre` : 'Aucun retard de paiement detecte',
-      tone: overdueInvoices.length > 0 ? 'danger' : unpaidInvoices.length > 0 ? 'warning' : 'success',
-      cta: 'Suivre les paiements',
-      link: '/app/invoices',
-    },
-    {
-      id: 'book',
-      title: '3. Comptabiliser',
-      detail: complianceOverview.uncategorizedTransactions > 0 ? `${complianceOverview.uncategorizedTransactions} operation(s) non categorisee(s)` : 'Balance exploitable pour la cloture',
-      tone: complianceOverview.uncategorizedTransactions > 0 ? 'warning' : 'success',
-      cta: 'Verifier la comptabilite',
-      link: '/app/reports',
-    },
-    {
-      id: 'declare',
-      title: '4. Declarer',
-      detail: complianceOverview.pendingDeclarations > 0 ? `${complianceOverview.pendingDeclarations} declaration(s) a traiter` : 'Declarations a jour',
-      tone: complianceOverview.pendingDeclarations > 0 ? 'warning' : 'success',
-      cta: 'Ouvrir les declarations',
-      link: '/app/declarations',
-    },
-  ];
   const maxSeries = Math.max(1, ...stats.monthSeries.flatMap((month) => [month.in, month.out]));
 
   return (
@@ -123,22 +89,6 @@ export function DashboardPage() {
         <p className="mt-1 text-sm text-ink-500">Voici un apercu de votre activite{profile?.company_name ? ` - ${profile.company_name}` : ''}.</p>
       </div>
 
-      <div className="card p-6">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <h2 className="font-display text-lg font-bold text-ink-900">Votre activite en 4 etapes</h2>
-            <p className="mt-1 text-xs text-ink-500">Comme un Indy congolais: peu d ecrans, un ordre simple, et les obligations RDC au bon moment.</p>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <Link to="/app/invoices" className="btn-primary"><FileText size={16} /> Nouvelle facture</Link>
-            <Link to="/app/declarations" className="btn-secondary"><Calendar size={16} /> Mes declarations</Link>
-          </div>
-        </div>
-        <div className="mt-5 grid gap-3 xl:grid-cols-4">
-          {currentFlowSteps.map((step) => <div key={step.id} className="rounded-2xl border border-ink-100 bg-ink-50 p-4"><div className="flex items-start justify-between gap-3"><div><p className="text-sm font-semibold text-ink-900">{step.title}</p><p className="mt-2 text-xs text-ink-500">{step.detail}</p></div><Badge tone={step.tone === 'danger' ? 'danger' : step.tone === 'warning' ? 'warning' : step.tone === 'success' ? 'success' : 'neutral'}>{step.tone === 'danger' ? 'Urgent' : step.tone === 'warning' ? 'A suivre' : step.tone === 'success' ? 'OK' : 'A lancer'}</Badge></div><Link to={step.link} className="mt-4 inline-flex text-sm font-medium text-brand-700 hover:text-brand-800">{step.cta}</Link></div>)}
-        </div>
-
-      </div>
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <KpiCard icon={Wallet} tone="brand" label="Tresorerie nette" value={fmtCDF(stats.net)} hint={`Encaisse ${fmtCDFShort(stats.cashIn)} - Decaisse ${fmtCDFShort(stats.cashOut)}`} />
