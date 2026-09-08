@@ -126,7 +126,7 @@ export function DocumentsPage() {
   const [reviewing, setReviewing] = useState<AccountingDocument | null>(null);
   const [selectedDocument, setSelectedDocument] = useState<AccountingDocument | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
-  const [viewFilter, setViewFilter] = useState<'all' | 'to_review' | 'created' | 'matched'>('all');
+  const [viewFilter, setViewFilter] = useState<'all' | 'pending' | 'ocr_done' | 'to_review' | 'created' | 'matched'>('all');
 
   const load = async () => {
     setLoading(true);
@@ -296,6 +296,8 @@ export function DocumentsPage() {
       const expenseTx = transactions.find((transaction) => transaction.document_id === doc.id);
       const matchesQuery = !query || [doc.file_name, doc.supplier || '', expenseTx?.label || ''].some((value) => value.toLowerCase().includes(query));
       if (!matchesQuery) return false;
+      if (viewFilter === 'pending') return doc.status === 'pending';
+      if (viewFilter === 'ocr_done') return doc.status === 'ocr_done';
       if (viewFilter === 'to_review') return doc.status === 'ocr_done' && !expenseTx && !doc.transaction_id;
       if (viewFilter === 'created') return !!expenseTx;
       if (viewFilter === 'matched') return doc.status === 'matched';
@@ -333,30 +335,22 @@ export function DocumentsPage() {
 
       {/* Stats */}
       <div className="grid gap-4 sm:grid-cols-4">
-        <div className="card p-4">
-          <div className="flex items-center gap-2 text-sm text-ink-500">
+        <button type="button" onClick={() => { setViewFilter('all'); setPage(1); }} className="card w-full p-4 text-left transition hover:shadow-pop"><div className="flex items-center gap-2 text-sm text-ink-500">
             <Paperclip size={16} /> Total
           </div>
-          <p className="mt-1.5 font-display text-xl font-extrabold text-ink-950">{stats.total}</p>
-        </div>
-        <div className="card p-4">
-          <div className="flex items-center gap-2 text-sm text-ink-500">
+          <p className="mt-1.5 font-display text-xl font-extrabold text-ink-950">{stats.total}</p></button>
+        <button type="button" onClick={() => { setViewFilter('pending'); setPage(1); }} className="card w-full p-4 text-left transition hover:shadow-pop"><div className="flex items-center gap-2 text-sm text-ink-500">
             <Clock size={16} className="text-warning-600" /> En attente
           </div>
-          <p className="mt-1.5 font-display text-xl font-extrabold text-ink-950">{stats.pending}</p>
-        </div>
-        <div className="card p-4">
-          <div className="flex items-center gap-2 text-sm text-ink-500">
+          <p className="mt-1.5 font-display text-xl font-extrabold text-ink-950">{stats.pending}</p></button>
+        <button type="button" onClick={() => { setViewFilter('ocr_done'); setPage(1); }} className="card w-full p-4 text-left transition hover:shadow-pop"><div className="flex items-center gap-2 text-sm text-ink-500">
             <Sparkles size={16} className="text-brand-600" /> OCR termine
           </div>
-          <p className="mt-1.5 font-display text-xl font-extrabold text-ink-950">{stats.ocrDone}</p>
-        </div>
-        <div className="card p-4">
-          <div className="flex items-center gap-2 text-sm text-ink-500">
+          <p className="mt-1.5 font-display text-xl font-extrabold text-ink-950">{stats.ocrDone}</p></button>
+        <button type="button" onClick={() => { setViewFilter('matched'); setPage(1); }} className="card w-full p-4 text-left transition hover:shadow-pop"><div className="flex items-center gap-2 text-sm text-ink-500">
             <CheckCircle2 size={16} className="text-success-600" /> Rapproches
           </div>
-          <p className="mt-1.5 font-display text-xl font-extrabold text-ink-950">{stats.matched}</p>
-        </div>
+          <p className="mt-1.5 font-display text-xl font-extrabold text-ink-950">{stats.matched}</p></button>
       </div>
 
       {/* Drop zone */}
@@ -402,6 +396,8 @@ export function DocumentsPage() {
           aria-label="Filtrer les justificatifs"
         >
           <option value="all">Toutes les pieces</option>
+          <option value="pending">En attente</option>
+          <option value="ocr_done">OCR termine</option>
           <option value="to_review">A verifier</option>
           <option value="created">Depenses creees</option>
           <option value="matched">Paiements rapproches</option>
