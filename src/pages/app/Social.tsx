@@ -72,7 +72,7 @@ export function SocialPage() {
         </div>
 
         <div className="space-y-4 lg:col-span-2">
-          <div className="grid gap-4 sm:grid-cols-5">
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
             <div className="card p-5"><div className="flex items-center gap-2 text-sm text-ink-500"><Wallet size={16} className="text-success-600" /> Cout employeur total</div><p className="mt-2 font-display text-2xl font-extrabold text-success-700">{fmtCDF(payroll.totalEmployerCost)}</p><p className="mt-1 text-xs text-ink-500">salaire brut + charges patronales</p></div>
             <div className="card p-5"><div className="flex items-center gap-2 text-sm text-ink-500"><Users size={16} className="text-danger-600" /> Charges patronales</div><p className="mt-2 font-display text-2xl font-extrabold text-danger-700">{fmtCDF(payroll.totalEmployerCharges)}</p><p className="mt-1 text-xs text-ink-500">CNSS + INPP + ONEM</p></div>
             <div className="card p-5"><div className="flex items-center gap-2 text-sm text-ink-500"><Wallet size={16} className="text-brand-600" /> Social a reverser</div><p className="mt-2 font-display text-2xl font-extrabold text-brand-700">{fmtCDF(payroll.totalSocialDue)}</p><p className="mt-1 text-xs text-ink-500">charges patronales + CNSS salariale</p></div>
