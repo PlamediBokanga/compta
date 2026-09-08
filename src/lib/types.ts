@@ -19,6 +19,7 @@ export interface Profile {
   siren: string | null;
   tax_id?: string | null;
   rccm?: string | null;
+  idnat?: string | null;
   tax_center?: string | null;
   def_device_id?: string | null;
   accounting_standard?: string | null;

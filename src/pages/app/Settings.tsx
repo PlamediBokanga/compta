@@ -33,6 +33,7 @@ export function SettingsPage() {
     vat_regime: 'reel_normal' as VatRegime,
     tax_id: '',
     rccm: '',
+    idnat: '',
     tax_center: '',
     def_device_id: '',
     accounting_standard: 'SYSCOHADA',
@@ -54,6 +55,7 @@ export function SettingsPage() {
       vat_regime: profile.vat_regime || 'reel_normal',
       tax_id: profile.tax_id || profile.siren || '',
       rccm: profile.rccm || '',
+      idnat: profile.idnat || '',
       tax_center: profile.tax_center || '',
       def_device_id: profile.def_device_id || '',
       accounting_standard: profile.accounting_standard || 'SYSCOHADA',
@@ -121,6 +123,7 @@ export function SettingsPage() {
           {statusDefinition && <div className="sm:col-span-2 rounded-xl bg-ink-50 p-4 text-sm text-ink-700"><p className="font-semibold text-ink-900">{statusDefinition.label}</p><p className="mt-1">Associes : {statusDefinition.associatesLabel}</p><p className="mt-1">Responsabilite : {statusDefinition.liabilityLabel}</p><p className="mt-1">Orientation : {statusDefinition.taxOrientation}</p><p className="mt-1">Base comptable : {statusDefinition.accountingBasis}</p></div>}
           <div><label className="label">NIF / identifiant fiscal</label><input value={form.tax_id} onChange={(e) => setForm({ ...form, tax_id: e.target.value })} className={`input ${errors.tax_id ? 'ring-danger-500/40' : ''}`} placeholder="Ex : A0700XXXXX" />{errors.tax_id && <p className="mt-1 text-xs text-danger-600">{errors.tax_id}</p>}</div>
           <div><label className="label">RCCM</label><input value={form.rccm} onChange={(e) => setForm({ ...form, rccm: e.target.value })} className={`input ${errors.rccm ? 'ring-danger-500/40' : ''}`} placeholder="Ex : CD/KIN/RCCM/24-B-1234" />{errors.rccm && <p className="mt-1 text-xs text-danger-600">{errors.rccm}</p>}</div>
+          <div><label className="label">ID-NAT</label><input value={form.idnat} onChange={(e) => setForm({ ...form, idnat: e.target.value })} className="input" placeholder="Ex : 01-450-N31053M" /></div>
           <div><label className="label">Centre des impots</label><input value={form.tax_center} onChange={(e) => setForm({ ...form, tax_center: e.target.value })} className="input" placeholder="Ex : CDI Gombe" /></div>
           <div><label className="label">Dispositif fiscal / DEF</label><input value={form.def_device_id} onChange={(e) => setForm({ ...form, def_device_id: e.target.value })} className="input" placeholder="Reference e-UF / e-MCF" /></div>
           <div><label className="label">Pays</label><input value={form.country} onChange={(e) => setForm({ ...form, country: e.target.value })} className="input" placeholder="RDC" /></div>
