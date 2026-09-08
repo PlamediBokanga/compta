@@ -214,15 +214,6 @@ export function DeclarationsPage() {
     },
   ];
 
-  const declarationWorkflow = useMemo(() => {
-    const today = new Date().toISOString().slice(0, 10);
-    const readyCount = declarations.filter((item) => item.status === 'ready').length;
-    const submittedCount = declarations.filter((item) => item.status === 'submitted').length;
-    const paidCount = declarations.filter((item) => item.status === 'paid').length;
-    const overdueCount = declarations.filter((item) => item.status !== 'paid' && item.status !== 'archived' && item.due_date && item.due_date < today).length;
-    return { readyCount, submittedCount, paidCount, overdueCount };
-  }, [declarations]);
-
   const readinessItems = [
     {
       id: 'fiscal-profile',
@@ -454,28 +445,6 @@ export function DeclarationsPage() {
           <button onClick={generateIprDeclaration} className="btn-secondary"><FileText size={16} /> IPR / IERE</button>
           <button onClick={() => generateLiasseDeclaration('liasse_2033')} className="btn-secondary"><FileText size={16} /> Resultat / IBP</button>
           <button onClick={() => setCreateOpen(true)} className="btn-primary"><Plus size={16} /> Nouvelle</button>
-        </div>
-      </div>
-
-      <div className="card p-6">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-brand-700">Parcours principal</p>
-            <h2 className="mt-1 font-display text-lg font-bold text-ink-950">Preparer, teledeclarer puis payer les obligations RDC</h2>
-            <p className="mt-1 text-sm text-ink-500">Au 4 aout 2026, cette page doit vous montrer clairement ce qui est pret, ce qui est en retard et ce qui reste a payer.</p>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <div className="rounded-xl bg-warning-50 px-3 py-2 text-sm text-warning-800"><span className="font-semibold">{declarationWorkflow.readyCount}</span> prete(s)</div>
-            <div className="rounded-xl bg-brand-50 px-3 py-2 text-sm text-brand-800"><span className="font-semibold">{declarationWorkflow.submittedCount}</span> teledeclaree(s)</div>
-            <div className="rounded-xl bg-success-50 px-3 py-2 text-sm text-success-800"><span className="font-semibold">{declarationWorkflow.paidCount}</span> payee(s)</div>
-            <div className={declarationWorkflow.overdueCount > 0 ? 'rounded-xl bg-danger-50 px-3 py-2 text-sm text-danger-700' : 'rounded-xl bg-ink-100 px-3 py-2 text-sm text-ink-700'}><span className="font-semibold">{declarationWorkflow.overdueCount}</span> en retard</div>
-          </div>
-        </div>
-        <div className="mt-4 grid gap-3 md:grid-cols-4">
-          <div className="rounded-2xl bg-ink-50 p-3"><p className="text-xs text-ink-500">1. Verifier</p><p className="mt-1 text-sm font-semibold text-ink-900">Profil fiscal, balance et paie du mois</p></div>
-          <div className="rounded-2xl bg-ink-50 p-3"><p className="text-xs text-ink-500">2. Generer</p><p className="mt-1 text-sm font-semibold text-ink-900">TVA, social, IPR / IERE et liasses utiles</p></div>
-          <div className="rounded-2xl bg-ink-50 p-3"><p className="text-xs text-ink-500">3. Teledeclarer</p><p className="mt-1 text-sm font-semibold text-ink-900">Faire passer les declarations de pretes a soumises</p></div>
-          <div className="rounded-2xl bg-ink-50 p-3"><p className="text-xs text-ink-500">4. Payer</p><p className="mt-1 text-sm font-semibold text-ink-900">Suivre les echeances et solder les dettes</p></div>
         </div>
       </div>
 
