@@ -3,7 +3,7 @@ import { Calculator, Percent, TrendingUp, Users, Wallet } from 'lucide-react';
 import { useAuth } from '../../lib/auth';
 import { fmtCDF, fmtPct } from '../../lib/format';
 import { useTransactions } from '../../lib/hooks';
-import { getLegalStatusDefinition, getLegalStatusLabel } from '../../lib/legal-status';
+import { getLegalStatusLabel } from '../../lib/legal-status';
 import { buildPayrollPostingGuide, estimateIere, estimateIprMonthly, getInppRate, simulatePayrollSocial } from '../../lib/social';
 
 export function SocialPage() {
@@ -23,7 +23,6 @@ export function SocialPage() {
   const [expatriatePayroll, setExpatriatePayroll] = useState(0);
 
   const legalStatus = profile?.legal_status ?? 'entreprise_individuelle';
-  const definition = getLegalStatusDefinition(legalStatus);
   const payroll = useMemo(() => simulatePayrollSocial(monthlyPayroll, employeeCount, companyNature), [monthlyPayroll, employeeCount, companyNature]);
   const inppRate = getInppRate(employeeCount, companyNature);
   const iprEstimate = useMemo(
@@ -81,7 +80,6 @@ export function SocialPage() {
             <div className="card p-5"><div className="flex items-center gap-2 text-sm text-ink-500"><Percent size={16} className="text-accent-600" /> IERE estimatif</div><p className="mt-2 font-display text-2xl font-extrabold text-accent-700">{fmtCDF(iereEstimate.amount)}</p><p className="mt-1 text-xs text-ink-500">25 % sur les expatries</p></div>
           </div>
 
-          {definition && <div className="card p-6"><div className="flex items-center gap-2"><TrendingUp size={18} className="text-brand-700" /><h3 className="font-display text-base font-bold text-ink-900">Matrice juridique RDC</h3></div><div className="mt-4 grid gap-3 sm:grid-cols-2"><div className="rounded-xl bg-ink-50 p-4"><p className="text-xs text-ink-500">Famille</p><p className="mt-1 font-semibold text-ink-900">{definition.family.replace(/_/g, ' ')}</p></div><div className="rounded-xl bg-ink-50 p-4"><p className="text-xs text-ink-500">Associes / membres</p><p className="mt-1 font-semibold text-ink-900">{definition.associatesLabel}</p></div><div className="rounded-xl bg-ink-50 p-4"><p className="text-xs text-ink-500">Responsabilite</p><p className="mt-1 font-semibold text-ink-900">{definition.liabilityLabel}</p></div><div className="rounded-xl bg-ink-50 p-4"><p className="text-xs text-ink-500">Finalite</p><p className="mt-1 font-semibold text-ink-900">{definition.profitPurpose.replace(/_/g, ' ')}</p></div><div className="rounded-xl bg-ink-50 p-4 sm:col-span-2"><p className="text-xs text-ink-500">Comptabilite</p><p className="mt-1 font-semibold text-ink-900">{definition.accountingBasis}</p><p className="mt-2 text-xs text-ink-500">Orientation fiscale : {definition.taxOrientation}</p></div></div><div className="mt-4 space-y-2">{definition.notes.map((note) => <div key={note} className="rounded-xl bg-brand-50 p-3 text-sm text-brand-800">{note}</div>)}</div></div>}
 
           <div className="card p-6">
             <h3 className="font-display text-base font-bold text-ink-900">Details des cotisations sociales</h3>
