@@ -125,6 +125,8 @@ export function DocumentsPage() {
   const [dragOver, setDragOver] = useState(false);
   const [matching, setMatching] = useState<AccountingDocument | null>(null);
   const [reviewing, setReviewing] = useState<AccountingDocument | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [viewFilter, setViewFilter] = useState<'all' | 'to_review' | 'created' | 'matched'>('all');
 
   const load = async () => {
     setLoading(true);
@@ -301,11 +303,24 @@ export function DocumentsPage() {
       .slice(0, 4);
   }, [items, transactions]);
 
-  const totalPages = Math.ceil(items.length / PAGE_SIZE);
+  const filteredItems = useMemo(() => {
+    const query = searchQuery.trim().toLowerCase();
+    return items.filter((doc) => {
+      const expenseTx = transactions.find((transaction) => transaction.document_id === doc.id);
+      const matchesQuery = !query || [doc.file_name, doc.supplier || '', expenseTx?.label || ''].some((value) => value.toLowerCase().includes(query));
+      if (!matchesQuery) return false;
+      if (viewFilter === 'to_review') return doc.status === 'ocr_done' && !expenseTx && !doc.transaction_id;
+      if (viewFilter === 'created') return !!expenseTx;
+      if (viewFilter === 'matched') return doc.status === 'matched';
+      return true;
+    });
+  }, [items, transactions, searchQuery, viewFilter]);
+
+  const totalPages = Math.ceil(filteredItems.length / PAGE_SIZE);
   const paged = useMemo(() => {
     const start = (page - 1) * PAGE_SIZE;
-    return items.slice(start, start + PAGE_SIZE);
-  }, [items, page]);
+    return filteredItems.slice(start, start + PAGE_SIZE);
+  }, [filteredItems, page]);
 
   return (
     <div className="space-y-5">
@@ -445,6 +460,29 @@ export function DocumentsPage() {
             <Sparkles size={14} className="animate-pulse" /> Analyse OCR en cours...
           </div>
         )}
+      </div>
+
+      <div className="card flex flex-wrap items-center gap-3 p-3">
+        <div className="relative min-w-[220px] flex-1">
+          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-400" />
+          <input
+            value={searchQuery}
+            onChange={(e) => { setSearchQuery(e.target.value); setPage(1); }}
+            className="input pl-9"
+            placeholder="Rechercher un fournisseur ou une piece..."
+          />
+        </div>
+        <select
+          value={viewFilter}
+          onChange={(e) => { setViewFilter(e.target.value as typeof viewFilter); setPage(1); }}
+          className="input w-auto min-w-[190px]"
+          aria-label="Filtrer les justificatifs"
+        >
+          <option value="all">Toutes les pieces</option>
+          <option value="to_review">A verifier</option>
+          <option value="created">Depenses creees</option>
+          <option value="matched">Paiements rapproches</option>
+        </select>
       </div>
 
       {/* Grid */}
