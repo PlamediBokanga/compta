@@ -19,12 +19,12 @@ export function CategoriesPage() {
   const expenseCats = categories.filter((c) => c.kind === 'expense');
 
   const remove = async (cat: Category) => {
-    if (!confirm(`Supprimer la catégorie « ${cat.label} » ?`)) return;
+    if (!confirm(`Supprimer la catï¿½gorie ï¿½ ${cat.label} ï¿½ ?`)) return;
     try {
       await deleteCategory(cat.id);
       await logAction('category.delete', 'category', cat.id, { label: cat.label });
       reload();
-      toast({ kind: 'success', message: 'Catégorie supprimée.' });
+      toast({ kind: 'success', message: 'Catï¿½gorie supprimï¿½e.' });
     } catch (e) {
       toast({ kind: 'error', message: e instanceof Error ? e.message : 'Erreur' });
     }
@@ -34,20 +34,20 @@ export function CategoriesPage() {
     <div className="space-y-5">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="font-display text-2xl font-extrabold tracking-tight text-ink-950">Catégories</h1>
+          <h1 className="font-display text-2xl font-extrabold tracking-tight text-ink-950">Catï¿½gories</h1>
           <p className="mt-1 text-sm text-ink-500">
-            Personnalisez votre plan comptable. Les mots-clés alimentent la catégorisation automatique.
+            Personnalisez votre plan comptable. Les mots-clï¿½s alimentent la catï¿½gorisation automatique.
           </p>
         </div>
         <button onClick={() => setCreateOpen(true)} className="btn-primary">
-          <Plus size={16} /> Nouvelle catégorie
+          <Plus size={16} /> Nouvelle catï¿½gorie
         </button>
       </div>
 
       <div className="grid gap-6 lg:grid-cols-2">
         <CategorySection
           title="Recettes"
-          icon="?"
+          icon="+"
           tone="success"
           items={incomeCats}
           loading={loading}
@@ -55,8 +55,8 @@ export function CategoriesPage() {
           onDelete={remove}
         />
         <CategorySection
-          title="Dépenses"
-          icon="?"
+          title="Dï¿½penses"
+          icon="-"
           tone="danger"
           items={expenseCats}
           loading={loading}
@@ -111,7 +111,7 @@ function CategorySection({
           <div key={i} className="px-5 py-3"><div className="skeleton h-10" /></div>
         ))}
         {!loading && items.length === 0 && (
-          <p className="px-5 py-8 text-center text-sm text-ink-500">Aucune catégorie.</p>
+          <p className="px-5 py-8 text-center text-sm text-ink-500">Aucune catï¿½gorie.</p>
         )}
         {!loading && items.map((cat) => (
           <div key={cat.id} className="group flex items-center gap-3 px-5 py-3 hover:bg-ink-50/60 transition">
@@ -122,7 +122,7 @@ function CategorySection({
               <p className="text-sm font-medium text-ink-900">{cat.label}</p>
               {cat.keywords?.length > 0 && (
                 <p className="truncate text-xs text-ink-500">
-                  Mots-clés : {cat.keywords.join(', ')}
+                  Mots-clï¿½s : {cat.keywords.join(', ')}
                 </p>
               )}
             </div>
@@ -165,7 +165,7 @@ function CategoryEditor({
   const toast = useToast();
   const [label, setLabel] = useState(category?.label ?? '');
   const [kind, setKind] = useState<CategoryKind>(category?.kind ?? 'expense');
-  const [vatRate, setVatRate] = useState(category?.vat_rate ?? 20);
+  const [vatRate, setVatRate] = useState(category?.vat_rate ?? 16);
   const [keywords, setKeywords] = useState((category?.keywords ?? []).join(', '));
 
   useEffect(() => {
@@ -179,7 +179,7 @@ function CategoryEditor({
   const save = async () => {
     if (!user) return;
     if (!label.trim()) {
-      toast({ kind: 'error', message: 'Libellé requis.' });
+      toast({ kind: 'error', message: 'Libellï¿½ requis.' });
       return;
     }
     const kw = keywords.split(',').map((k) => k.trim()).filter(Boolean);
@@ -191,7 +191,7 @@ function CategoryEditor({
         await insertCategory({ user_id: user.id, label: label.trim(), kind, vat_rate: Number(vatRate), keywords: kw, color: 'accent' });
         await logAction('category.create', 'category', undefined, { label: label.trim() });
       }
-      toast({ kind: 'success', message: category ? 'Catégorie mise à jour.' : 'Catégorie créée.' });
+      toast({ kind: 'success', message: category ? 'Catï¿½gorie mise ï¿½ jour.' : 'Catï¿½gorie crï¿½ï¿½e.' });
       onSaved();
     } catch (e) {
       toast({ kind: 'error', message: e instanceof Error ? e.message : 'Erreur' });
@@ -202,7 +202,7 @@ function CategoryEditor({
     <Modal
       open={open}
       onClose={onClose}
-      title={category ? 'Modifier la catégorie' : 'Nouvelle catégorie'}
+      title={category ? 'Modifier la catï¿½gorie' : 'Nouvelle catï¿½gorie'}
       footer={
         <>
           <button onClick={onClose} className="btn-ghost">Annuler</button>
@@ -214,7 +214,7 @@ function CategoryEditor({
     >
       <div className="space-y-4">
         <div>
-          <label className="label">Libellé</label>
+          <label className="label">Libellï¿½</label>
           <input value={label} onChange={(e) => setLabel(e.target.value)} className="input" placeholder="Ex : Formation" autoFocus />
         </div>
         <div className="grid grid-cols-2 gap-3">
@@ -225,7 +225,7 @@ function CategoryEditor({
                 onClick={() => setKind('expense')}
                 className={`rounded-xl border px-3 py-2 text-sm font-medium ${kind === 'expense' ? 'border-danger-500 bg-danger-50 text-danger-700' : 'border-ink-200'}`}
               >
-                Dépense
+                Dï¿½pense
               </button>
               <button
                 onClick={() => setKind('income')}
@@ -241,19 +241,19 @@ function CategoryEditor({
               <option value={0}>0%</option>
               <option value={5.5}>5,5%</option>
               <option value={10}>10%</option>
-              <option value={20}>20%</option>
+              <option value={16}>16%</option>
             </select>
           </div>
         </div>
         <div>
-          <label className="label">Mots-clés (séparés par des virgules)</label>
+          <label className="label">Mots-clï¿½s (sï¿½parï¿½s par des virgules)</label>
           <input
             value={keywords}
             onChange={(e) => setKeywords(e.target.value)}
             className="input"
             placeholder="formation, cours, elearning"
           />
-          <p className="mt-1 text-xs text-ink-500">Utilisés pour la catégorisation automatique des transactions.</p>
+          <p className="mt-1 text-xs text-ink-500">Utilisï¿½s pour la catï¿½gorisation automatique des transactions.</p>
         </div>
       </div>
     </Modal>
