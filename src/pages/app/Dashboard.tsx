@@ -44,7 +44,6 @@ export function DashboardPage() {
     if (!user) return;
 
     (async () => {
-      const overdueInvoices = invoices.filter((invoice) => !invoice.is_quote && effectiveInvoiceStatus(invoice) === 'overdue');
       for (const invoice of overdueInvoices.slice(0, 3)) {
         const { data: existing } = await supabase.from('notifications').select('id').eq('user_id', user.id).ilike('title', `%${invoice.number}%`).maybeSingle();
         if (!existing) {
@@ -77,9 +76,6 @@ export function DashboardPage() {
   const openTasks = tasks.filter((task) => !task.done).slice(0, 5);
   const recentInvoices = invoices.slice(0, 5);
   const recentTransactions = transactions.slice(0, 6);
-  const overdueInvoices = invoices.filter((invoice) => !invoice.is_quote && effectiveInvoiceStatus(invoice) === 'overdue');
-  const draftInvoices = invoices.filter((invoice) => !invoice.is_quote && effectiveInvoiceStatus(invoice) === 'draft');
-  const unpaidInvoices = invoices.filter((invoice) => !invoice.is_quote && ['sent', 'overdue'].includes(effectiveInvoiceStatus(invoice)));
   const maxSeries = Math.max(1, ...stats.monthSeries.flatMap((month) => [month.in, month.out]));
 
   return (
