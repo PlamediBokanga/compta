@@ -69,7 +69,7 @@ export function CatalogItemsPage() {
           {loading && Array.from({ length: 5 }).map((_, index) => <div key={index} className="px-5 py-3"><div className="skeleton h-14" /></div>)}
           {!loading && filtered.length === 0 && <p className="px-5 py-10 text-center text-sm text-ink-500">Aucun article ou service enregistré.</p>}
           {!loading && filtered.map((item) => (
-            <div key={item.id} className="group flex flex-wrap items-center gap-3 px-5 py-4 hover:bg-ink-50/60 transition">
+            <div key={item.id} onClick={() => setEditing(item)} className="group flex cursor-pointer flex-wrap items-center gap-3 px-5 py-4 transition hover:bg-ink-50/60">
               <div className={`grid h-10 w-10 place-items-center rounded-xl ${item.item_type === 'product' ? 'bg-accent-100 text-accent-700' : 'bg-brand-100 text-brand-700'}`}>{item.item_type === 'product' ? <Box size={18} /> : <Wrench size={18} />}</div>
               <div className="min-w-[220px] flex-1">
                 <div className="flex flex-wrap items-center gap-2">
@@ -87,9 +87,9 @@ export function CatalogItemsPage() {
                 <p className="text-xs text-ink-500">TVA {item.vat_rate}%</p>
               </div>
               <div className="flex items-center gap-1 opacity-0 transition group-hover:opacity-100">
-                <button onClick={() => toggleActive(item)} className="rounded-lg p-1.5 text-ink-500 hover:bg-ink-100 hover:text-ink-900" title={item.active ? 'Désactiver' : 'Réactiver'}><Check size={15} /></button>
-                <button onClick={() => setEditing(item)} className="rounded-lg p-1.5 text-ink-500 hover:bg-ink-100 hover:text-ink-900" title="Modifier"><Pencil size={15} /></button>
-                <button onClick={() => remove(item)} className="rounded-lg p-1.5 text-ink-400 hover:bg-danger-50 hover:text-danger-600" title="Supprimer"><Trash2 size={15} /></button>
+                <button onClick={(event) => { event.stopPropagation(); toggleActive(item); }} className="rounded-lg p-1.5 text-ink-500 hover:bg-ink-100 hover:text-ink-900" title={item.active ? 'Désactiver' : 'Réactiver'}><Check size={15} /></button>
+                <button onClick={(event) => { event.stopPropagation(); setEditing(item); }} className="rounded-lg p-1.5 text-ink-500 hover:bg-ink-100 hover:text-ink-900" title="Modifier"><Pencil size={15} /></button>
+                <button onClick={(event) => { event.stopPropagation(); remove(item); }} className="rounded-lg p-1.5 text-ink-400 hover:bg-danger-50 hover:text-danger-600" title="Supprimer"><Trash2 size={15} /></button>
               </div>
             </div>
           ))}
