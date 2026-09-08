@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ArrowDownRight,
   ArrowUpRight,
@@ -10,6 +10,8 @@ import {
   Sparkles,
   Upload,
   FileSpreadsheet,
+  ChevronDown,
+  ChevronUp,
 } from 'lucide-react';
 import { useAuth } from '../../lib/auth';
 import { useCategories, useTransactions } from '../../lib/hooks';
@@ -311,6 +313,7 @@ export function TransactionsPage() {
   const [addOpen, setAddOpen] = useState(false);
   const [guidedOpen, setGuidedOpen] = useState(false);
   const [page, setPage] = useState(1);
+  const [expandedTransactionId, setExpandedTransactionId] = useState<string | null>(null);
   const csvInputRef = useRef<HTMLInputElement>(null);
   const PAGE_SIZE = 25;
 
@@ -523,77 +526,105 @@ export function TransactionsPage() {
               <tr className="border-b border-ink-100 bg-ink-50 text-left text-xs uppercase tracking-wider text-ink-500">
                 <th className="px-4 py-3 font-semibold">Date</th>
                 <th className="px-4 py-3 font-semibold">Libelle</th>
-                <th className="px-4 py-3 font-semibold">Categorie</th>
                 <th className="px-4 py-3 font-semibold text-right">Montant</th>
-                <th className="px-4 py-3 font-semibold text-right">TVA</th>
                 <th className="px-4 py-3 font-semibold text-right">Etat</th>
+                <th className="px-4 py-3 font-semibold text-right">Details</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-ink-100">
               {loading && Array.from({ length: 6 }).map((_, index) => (
                 <tr key={index}>
-                  <td colSpan={6} className="px-4 py-3"><div className="skeleton h-10" /></td>
+                  <td colSpan={5} className="px-4 py-3"><div className="skeleton h-10" /></td>
                 </tr>
               ))}
               {!loading && filtered.length === 0 && (
                 <tr>
-                  <td colSpan={6} className="px-4 py-10 text-center text-ink-500">
+                  <td colSpan={5} className="px-4 py-10 text-center text-ink-500">
                     Aucune transaction. Utilisez l import de mouvements ou le CSV pour commencer.
                   </td>
                 </tr>
               )}
-              {!loading && paged.map((transaction) => (
-                <tr key={transaction.id} className="group transition hover:bg-ink-50/60">
-                  <td className="px-4 py-3 whitespace-nowrap text-ink-600">{fmtDate(transaction.date)}</td>
-                  <td className="px-4 py-3">
-                    <div className="flex items-center gap-2.5">
-                      <div className={`grid h-8 w-8 shrink-0 place-items-center rounded-lg ${transaction.direction === 'in' ? 'bg-success-50 text-success-600' : 'bg-danger-50 text-danger-600'}`}>
-                        {transaction.direction === 'in' ? <ArrowUpRight size={14} /> : <ArrowDownRight size={14} />}
-                      </div>
-                      <span className="font-medium text-ink-900">{transaction.label}</span>
-                    </div>
-                  </td>
-                  <td className="px-4 py-3">
-                    <select
-                      value={transaction.category_id ?? ''}
-                      onChange={(e) => categorize(transaction, e.target.value || null)}
-                      className="rounded-lg border-0 bg-transparent px-2 py-1 text-sm text-ink-700 ring-1 ring-ink-200 focus:outline-none focus:ring-2 focus:ring-brand-400"
-                    >
-                      <option value="">- Choisir -</option>
-                      {categories
-                        .filter((category) => category.kind === (transaction.direction === 'in' ? 'income' : 'expense'))
-                        .map((category) => (
-                          <option key={category.id} value={category.id}>{category.label}</option>
-                        ))}
-                    </select>
-                  </td>
-                  <td className={`px-4 py-3 text-right font-semibold ${transaction.direction === 'in' ? 'text-success-700' : 'text-ink-900'}`}>
-                    {transaction.direction === 'in' ? '+' : '-'}{fmtCDF(transaction.amount)}
-                  </td>
-                  <td className="px-4 py-3 text-right text-ink-500">
-                    {Number(transaction.vat_amount) > 0 ? fmtCDF(transaction.vat_amount) : '-'}
-                  </td>
-                  <td className="px-4 py-3 text-right">
-                    <div className="flex flex-wrap justify-end gap-1.5">
-                      <Badge tone={stateTone[transaction.categorization_state]}>
-                        {transaction.categorization_state === 'auto' && <Sparkles size={12} />}
-                        {stateLabel[transaction.categorization_state]}
-                      </Badge>
-                      <button
-                        type="button"
-                        onClick={() => toggleReconciliation(transaction)}
-                        title={transaction.reconciliated ? 'Remettre a controler' : 'Marquer comme rapproche'}
-                      >
-                        <Badge tone={transaction.reconciliated ? 'success' : 'warning'}>
-                          {transaction.reconciliated ? 'Rapproche' : 'A rapprocher'}
-                        </Badge>
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+              {!loading && paged.map((transaction) => {
+                const expanded = expandedTransactionId === transaction.id;
+                return (
+                  <Fragment key={transaction.id}>
+                    <tr className="group transition hover:bg-ink-50/60">
+                      <td className="whitespace-nowrap px-4 py-3 text-ink-600">{fmtDate(transaction.date)}</td>
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-2.5">
+                          <div className={transaction.direction === 'in' ? 'grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-success-50 text-success-600' : 'grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-danger-50 text-danger-600'}>
+                            {transaction.direction === 'in' ? <ArrowUpRight size={14} /> : <ArrowDownRight size={14} />}
+                          </div>
+                          <span className="max-w-[28rem] truncate font-medium text-ink-900">{transaction.label}</span>
+                        </div>
+                      </td>
+                      <td className={transaction.direction === 'in' ? 'px-4 py-3 text-right font-semibold text-success-700' : 'px-4 py-3 text-right font-semibold text-ink-900'}>
+                        {transaction.direction === 'in' ? '+' : '-'}{fmtCDF(transaction.amount)}
+                      </td>
+                      <td className="px-4 py-3 text-right">
+                        <div className="flex flex-wrap justify-end gap-1.5">
+                          <Badge tone={stateTone[transaction.categorization_state]}>
+                            {transaction.categorization_state === 'auto' && <Sparkles size={12} />}
+                            {stateLabel[transaction.categorization_state]}
+                          </Badge>
+                          <button
+                            type="button"
+                            onClick={() => toggleReconciliation(transaction)}
+                            title={transaction.reconciliated ? 'Remettre a controler' : 'Marquer comme rapproche'}
+                          >
+                            <Badge tone={transaction.reconciliated ? 'success' : 'warning'}>
+                              {transaction.reconciliated ? 'Rapproche' : 'A rapprocher'}
+                            </Badge>
+                          </button>
+                        </div>
+                      </td>
+                      <td className="px-4 py-3 text-right">
+                        <button
+                          type="button"
+                          onClick={() => setExpandedTransactionId(expanded ? null : transaction.id)}
+                          className="inline-flex items-center gap-1 rounded-lg p-2 text-ink-500 transition hover:bg-ink-100 hover:text-ink-900"
+                          aria-label={expanded ? 'Masquer les details' : 'Afficher les details'}
+                          title={expanded ? 'Masquer les details' : 'Afficher les details'}
+                        >
+                          {expanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                        </button>
+                      </td>
+                    </tr>
+                    {expanded && (
+                      <tr className="bg-ink-50/70">
+                        <td colSpan={5} className="px-4 py-4">
+                          <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_auto_auto] md:items-end">
+                            <div>
+                              <label className="label">Categorie</label>
+                              <select
+                                value={transaction.category_id ?? ''}
+                                onChange={(e) => categorize(transaction, e.target.value || null)}
+                                className="input"
+                              >
+                                <option value="">A categoriser</option>
+                                {categories
+                                  .filter((category) => category.kind === (transaction.direction === 'in' ? 'income' : 'expense'))
+                                  .map((category) => (
+                                    <option key={category.id} value={category.id}>{category.label}</option>
+                                  ))}
+                              </select>
+                            </div>
+                            <div>
+                              <p className="label">TVA suivie</p>
+                              <p className="text-sm font-semibold text-ink-900">{Number(transaction.vat_amount) > 0 ? fmtCDF(transaction.vat_amount) : '-'}</p>
+                            </div>
+                            <div>
+                              <p className="label">Compte</p>
+                              <p className="text-sm font-semibold text-ink-900">{transaction.bank_account_label || 'Non renseigne'}</p>
+                            </div>
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                  </Fragment>
+                );
+              })}
+            </tbody>          </table>
         </div>
         <Pagination page={page} totalPages={totalPages} onPageChange={setPage} total={filtered.length} pageSize={PAGE_SIZE} />
       </div>
