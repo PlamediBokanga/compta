@@ -1,4 +1,4 @@
-﻿import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import {
   BarChart3,
   Bell,
@@ -40,20 +40,39 @@ type NavSection = {
 
 const navSections: NavSection[] = [
   {
-    title: 'Principal',
+    title: 'Pilotage',
     items: [
       { to: '/app', label: 'Accueil', icon: LayoutDashboard },
-      { to: '/app/invoices', label: 'Ventes', icon: FileText },
-      { to: '/app/transactions', label: 'Banque', icon: BarChart3 },
-      { to: '/app/declarations', label: 'Obligations RDC', icon: Shield },
-      { to: '/app/reports', label: 'Comptabilite', icon: Scale },
+    ],
+  },
+  {
+    title: 'Flux entrants',
+    items: [
+      { to: '/app/invoices', label: 'Ventes et factures', icon: FileText },
+      { to: '/app/documents', label: 'Achats et justificatifs', icon: FileText },
+      { to: '/app/transactions', label: 'Banque et tresorerie', icon: BarChart3 },
+    ],
+  },
+  {
+    title: 'Gestion commerciale',
+    items: [
+      { to: '/app/customers', label: 'Clients', icon: Users },
+      { to: '/app/catalog', label: 'Articles et services', icon: FileText },
+    ],
+  },
+  {
+    title: 'Comptabilite et fiscalite',
+    items: [
+      { to: '/app/reports', label: 'Comptabilite SYSCOHADA', icon: Scale },
+      { to: '/app/declarations', label: 'Declarations RDC', icon: Shield },
+      { to: '/app/social', label: 'Paie et cotisations', icon: Users },
     ],
   },
   {
     title: 'Entreprise',
     items: [
-      { to: '/app/settings', label: 'Parametres', icon: Settings },
-      { to: '/app/support', label: 'Aide & support', icon: LifeBuoy },
+      { to: '/app/settings', label: 'Profil et parametres', icon: Settings },
+      { to: '/app/support', label: 'Aide et support', icon: LifeBuoy },
     ],
   },
   {
@@ -61,7 +80,7 @@ const navSections: NavSection[] = [
     items: [
       { to: '/app/team', label: 'Equipe', icon: Users, requires: 'team' },
       { to: '/app/admin', label: 'Back-office', icon: Gauge, requires: 'admin' },
-      { to: '/app/api', label: 'API & Webhooks', icon: Code, requires: 'api' },
+      { to: '/app/api', label: 'API et Webhooks', icon: Code, requires: 'api' },
     ],
   },
 ];
@@ -336,7 +355,4 @@ function NotificationBell() {
     </div>
   );
 }
-
-
-
 

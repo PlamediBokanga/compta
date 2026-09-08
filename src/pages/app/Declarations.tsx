@@ -16,13 +16,13 @@ import type { Declaration, DeclarationStatus, DeclarationType } from '../../lib/
 
 const typeMeta: Record<DeclarationType, { label: string; tone: 'brand' | 'accent' | 'neutral' }> = {
   tva: { label: 'TVA DGI', tone: 'brand' },
-  liasse_2035: { label: 'Annexes OHADA', tone: 'accent' },
-  liasse_2033: { label: 'Resultat fiscal / IBP', tone: 'accent' },
-  liasse_2065: { label: 'Impot sur les benefices', tone: 'accent' },
+  liasse_2035: { label: 'Annexes SYSCOHADA / CPCC', tone: 'accent' },
+  liasse_2033: { label: 'Etat financier / resultat', tone: 'accent' },
+  liasse_2065: { label: 'IBP - impot sur les benefices', tone: 'accent' },
   urssaf: { label: 'CNSS / INPP / ONEM', tone: 'brand' },
   das2: { label: 'IPR / IERE DGI', tone: 'neutral' },
-  cfe: { label: 'Patente / licence', tone: 'neutral' },
-  '2042_c_pro': { label: 'IRPP / dirigeant', tone: 'neutral' },
+  cfe: { label: 'Patente et licence RDC', tone: 'neutral' },
+  '2042_c_pro': { label: 'Impot du dirigeant DGI', tone: 'neutral' },
 };
 
 const statusMeta: Record<DeclarationStatus, { label: string; tone: 'neutral' | 'warning' | 'brand' | 'success' }> = {
@@ -767,14 +767,4 @@ function CreateDeclarationModal({ open, onClose, onSaved }: { open: boolean; onC
     </Modal>
   );
 }
-
-
-
-
-
-
-
-
-
-
 
