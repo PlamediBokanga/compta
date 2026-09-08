@@ -1,4 +1,4 @@
-﻿import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Building2, Check, History, KeyRound, QrCode, Save, Shield, ShieldCheck } from 'lucide-react';
 import { Badge } from '../../components/ui/Badge';
 import { Modal } from '../../components/ui/Modal';
@@ -77,21 +77,6 @@ export function SettingsPage() {
   const hasErrors = Object.values(errors).some(Boolean);
   const statusDefinition = getLegalStatusDefinition(form.legal_status);
 
-  const profileWorkflow = useMemo(() => {
-    const identityChecks = [form.company_name, form.legal_status, form.tax_id, form.rccm, form.tax_center, form.address];
-    const invoiceChecks = [form.phone, form.city, form.accounting_standard, form.country];
-    const normalizationChecks = [form.tax_id, form.rccm, form.def_device_id];
-
-    return {
-      identityCompleted: identityChecks.filter((value) => String(value || '').trim().length > 0).length,
-      identityTotal: identityChecks.length,
-      invoiceCompleted: invoiceChecks.filter((value) => String(value || '').trim().length > 0).length,
-      invoiceTotal: invoiceChecks.length,
-      normalizationReady: normalizationChecks.every((value) => String(value || '').trim().length > 0),
-      paymentReady: Boolean(String(form.iban || '').trim() || String(form.bic || '').trim()),
-    };
-  }, [form]);
-
   const save = async () => {
     if (!user) return;
     if (hasErrors) {
@@ -119,49 +104,6 @@ export function SettingsPage() {
         <p className="mt-1 text-sm text-ink-500">
           Vos informations legales et fiscales pilotent la facture standard, la future normalisation DGI et les exports SYSCOHADA / CPCC.
         </p>
-      </div>
-
-      <div className="card p-6">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-brand-700">Parcours principal</p>
-            <h2 className="mt-1 font-display text-lg font-bold text-ink-950">Completer le profil qui alimente toute l application</h2>
-            <p className="mt-1 text-sm text-ink-500">
-              Ces reglages servent a la facture, a la normalisation RDC, aux declarations et aux rapports comptables.
-            </p>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <div className="rounded-xl bg-brand-50 px-3 py-2 text-sm text-brand-800">
-              <span className="font-semibold">{profileWorkflow.identityCompleted}/{profileWorkflow.identityTotal}</span> identite entreprise
-            </div>
-            <div className="rounded-xl bg-success-50 px-3 py-2 text-sm text-success-800">
-              <span className="font-semibold">{profileWorkflow.invoiceCompleted}/{profileWorkflow.invoiceTotal}</span> profil facture
-            </div>
-            <div className={profileWorkflow.normalizationReady ? 'rounded-xl bg-success-50 px-3 py-2 text-sm text-success-800' : 'rounded-xl bg-warning-50 px-3 py-2 text-sm text-warning-800'}>
-              {profileWorkflow.normalizationReady ? 'Normalisation prete' : 'Normalisation a completer'}
-            </div>
-          </div>
-        </div>
-        <div className="mt-4 grid gap-3 md:grid-cols-4">
-          <div className="rounded-2xl bg-ink-50 p-3"><p className="text-xs text-ink-500">1. Identifier</p><p className="mt-1 text-sm font-semibold text-ink-900">Nom, statut, NIF et RCCM</p></div>
-          <div className="rounded-2xl bg-ink-50 p-3"><p className="text-xs text-ink-500">2. Localiser</p><p className="mt-1 text-sm font-semibold text-ink-900">Adresse, ville, telephone et centre des impots</p></div>
-          <div className="rounded-2xl bg-ink-50 p-3"><p className="text-xs text-ink-500">3. Fiscaliser</p><p className="mt-1 text-sm font-semibold text-ink-900">DEF et regime TVA pour la RDC</p></div>
-          <div className="rounded-2xl bg-ink-50 p-3"><p className="text-xs text-ink-500">4. Facturer</p><p className="mt-1 text-sm font-semibold text-ink-900">Coordonnees de paiement et base facture</p></div>
-        </div>
-        <div className="mt-4 grid gap-3 md:grid-cols-3">
-          <div className="rounded-2xl bg-ink-50 p-4">
-            <p className="text-sm font-semibold text-ink-900">Identite legale</p>
-            <p className="mt-1 text-xs text-ink-500">{profileWorkflow.identityCompleted} champ(s) renseignes sur {profileWorkflow.identityTotal}</p>
-          </div>
-          <div className="rounded-2xl bg-ink-50 p-4">
-            <p className="text-sm font-semibold text-ink-900">Facture et contact</p>
-            <p className="mt-1 text-xs text-ink-500">{profileWorkflow.invoiceCompleted} champ(s) renseignes sur {profileWorkflow.invoiceTotal}</p>
-          </div>
-          <div className="rounded-2xl bg-ink-50 p-4">
-            <p className="text-sm font-semibold text-ink-900">Paiement</p>
-            <p className="mt-1 text-xs text-ink-500">{profileWorkflow.paymentReady ? 'Coordonnees de paiement presentes' : 'Ajouter au moins une coordonnee bancaire'}</p>
-          </div>
-        </div>
       </div>
 
       <div className="card p-6">

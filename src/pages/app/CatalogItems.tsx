@@ -27,13 +27,6 @@ export function CatalogItemsPage() {
     );
   }, [items, search]);
 
-  const workflow = useMemo(() => {
-    const active = items.filter((item) => item.active).length;
-    const inCdf = items.filter((item) => item.currency === 'CDF').length;
-    const standardVat = items.filter((item) => Number(item.vat_rate) === RDC_STANDARD_VAT_RATE).length;
-    return { active, inCdf, standardVat, total: items.length };
-  }, [items]);
-
   const remove = async (item: CatalogItem) => {
     if (!confirm(`Supprimer l'article ou service \"${item.name}\" ?`)) return;
     try {
@@ -65,27 +58,6 @@ export function CatalogItemsPage() {
           <p className="mt-1 text-sm text-ink-500">Préparez votre référentiel commercial avec prix unitaires, TVA RDC et devises CDF/USD.</p>
         </div>
         <button onClick={() => setCreateOpen(true)} className="btn-primary"><Plus size={16} /> Nouvel article / service</button>
-      </div>
-
-      <div className="card p-5">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-brand-700">Parcours principal</p>
-            <h2 className="mt-1 font-display text-lg font-bold text-ink-950">Preparer les lignes de vente avant la facture</h2>
-            <p className="mt-1 text-sm text-ink-500">Le catalogue doit vous permettre de facturer plus vite avec les bons prix, la bonne devise et la bonne TVA RDC.</p>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <div className="rounded-xl bg-brand-50 px-3 py-2 text-sm text-brand-800"><span className="font-semibold">{workflow.active}</span> actif(s)</div>
-            <div className="rounded-xl bg-success-50 px-3 py-2 text-sm text-success-800"><span className="font-semibold">{workflow.inCdf}</span> en CDF</div>
-            <div className="rounded-xl bg-warning-50 px-3 py-2 text-sm text-warning-800"><span className="font-semibold">{workflow.standardVat}</span> avec TVA standard</div>
-          </div>
-        </div>
-        <div className="mt-4 grid gap-3 md:grid-cols-4">
-          <div className="rounded-2xl bg-ink-50 p-3"><p className="text-xs text-ink-500">1. Creer</p><p className="mt-1 text-sm font-semibold text-ink-900">Produit ou service avec description</p></div>
-          <div className="rounded-2xl bg-ink-50 p-3"><p className="text-xs text-ink-500">2. Tarifer</p><p className="mt-1 text-sm font-semibold text-ink-900">Prix unitaire en CDF ou USD</p></div>
-          <div className="rounded-2xl bg-ink-50 p-3"><p className="text-xs text-ink-500">3. Fiscaliser</p><p className="mt-1 text-sm font-semibold text-ink-900">TVA adaptee a la vente</p></div>
-          <div className="rounded-2xl bg-ink-50 p-3"><p className="text-xs text-ink-500">4. Facturer</p><p className="mt-1 text-sm font-semibold text-ink-900">Lignes prêtes dans la facture</p></div>
-        </div>
       </div>
 
       <div className="card p-4">

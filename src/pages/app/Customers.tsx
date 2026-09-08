@@ -26,13 +26,6 @@ export function CustomersPage() {
     );
   }, [customers, search]);
 
-  const workflow = useMemo(() => {
-    const active = customers.filter((customer) => customer.active).length;
-    const withFiscalId = customers.filter((customer) => !!customer.tax_id || !!customer.rccm).length;
-    const missingContact = customers.filter((customer) => !customer.phone && !customer.email).length;
-    return { active, withFiscalId, missingContact, total: customers.length };
-  }, [customers]);
-
   const remove = async (customer: Customer) => {
     if (!confirm(`Supprimer le client \"${customer.name}\" ?`)) return;
     try {
@@ -64,27 +57,6 @@ export function CustomersPage() {
           <p className="mt-1 text-sm text-ink-500">Centralisez vos clients, leurs contacts et leurs références fiscales avant la facturation.</p>
         </div>
         <button onClick={() => setCreateOpen(true)} className="btn-primary"><Plus size={16} /> Nouveau client</button>
-      </div>
-
-      <div className="card p-5">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-brand-700">Parcours principal</p>
-            <h2 className="mt-1 font-display text-lg font-bold text-ink-950">Preparer les clients avant emission des factures</h2>
-            <p className="mt-1 text-sm text-ink-500">L objectif ici est d avoir des fiches clients propres, joignables et fiscalement identifiables pour gagner du temps a la facturation.</p>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <div className="rounded-xl bg-brand-50 px-3 py-2 text-sm text-brand-800"><span className="font-semibold">{workflow.active}</span> client(s) actif(s)</div>
-            <div className="rounded-xl bg-success-50 px-3 py-2 text-sm text-success-800"><span className="font-semibold">{workflow.withFiscalId}</span> avec NIF/RCCM</div>
-            <div className="rounded-xl bg-warning-50 px-3 py-2 text-sm text-warning-800"><span className="font-semibold">{workflow.missingContact}</span> sans contact</div>
-          </div>
-        </div>
-        <div className="mt-4 grid gap-3 md:grid-cols-4">
-          <div className="rounded-2xl bg-ink-50 p-3"><p className="text-xs text-ink-500">1. Creer</p><p className="mt-1 text-sm font-semibold text-ink-900">Nom, telephone, e-mail et adresse</p></div>
-          <div className="rounded-2xl bg-ink-50 p-3"><p className="text-xs text-ink-500">2. Identifier</p><p className="mt-1 text-sm font-semibold text-ink-900">RCCM et NIF quand ils existent</p></div>
-          <div className="rounded-2xl bg-ink-50 p-3"><p className="text-xs text-ink-500">3. Facturer</p><p className="mt-1 text-sm font-semibold text-ink-900">Base client prete pour les factures</p></div>
-          <div className="rounded-2xl bg-ink-50 p-3"><p className="text-xs text-ink-500">4. Encaisser</p><p className="mt-1 text-sm font-semibold text-ink-900">Suivi plus simple des paiements</p></div>
-        </div>
       </div>
 
       <div className="card p-4">

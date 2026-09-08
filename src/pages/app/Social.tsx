@@ -1,4 +1,4 @@
-﻿import { useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Calculator, Percent, TrendingUp, Users, Wallet } from 'lucide-react';
 import { useAuth } from '../../lib/auth';
 import { fmtCDF, fmtPct } from '../../lib/format';
@@ -33,92 +33,11 @@ export function SocialPage() {
   const iereEstimate = useMemo(() => estimateIere(expatriatePayroll), [expatriatePayroll]);
   const payrollPostingGuide = useMemo(() => buildPayrollPostingGuide(payroll, iprEstimate, iereEstimate), [payroll, iprEstimate, iereEstimate]);
 
-  const socialWorkflow = useMemo(() => {
-    const steps = [
-      {
-        id: 'payroll',
-        title: 'Saisir la paie brute',
-        detail: `${fmtCDF(payroll.grossPayroll)} de base mensuelle de paie`,
-      },
-      {
-        id: 'social',
-        title: 'Calculer les cotisations',
-        detail: `${fmtCDF(payroll.totalSocialDue)} a reverser aux organismes sociaux`,
-      },
-      {
-        id: 'tax',
-        title: 'Retenir l IPR / IERE',
-        detail: `${fmtCDF(iprEstimate.monthlyTax + iereEstimate.amount)} de fiscalite salariale estimee`,
-      },
-      {
-        id: 'postings',
-        title: 'Passer les ecritures',
-        detail: `${payrollPostingGuide.lines.length} ecriture(s) conseillee(s)`,
-      },
-    ];
-
-    const priorities = [
-      { label: 'CNSS + INPP + ONEM', amount: payroll.totalSocialDue, tone: 'brand' as const },
-      { label: 'IPR DGI', amount: iprEstimate.monthlyTax, tone: 'warning' as const },
-      { label: 'IERE DGI', amount: iereEstimate.amount, tone: 'accent' as const },
-    ].filter((item) => item.amount > 0);
-
-    return { steps, priorities };
-  }, [payroll, iprEstimate, iereEstimate, payrollPostingGuide.lines.length]);
-
   return (
     <div className="space-y-5">
       <div>
         <h1 className="font-display text-2xl font-extrabold tracking-tight text-ink-950">Social et cotisations RDC</h1>
         <p className="mt-1 text-sm text-ink-500">Obligations patronales liees a l embauche de salaries : CNSS, INPP, ONEM, IPR et IERE sur la paie du mois.</p>
-      </div>
-
-      <div className="card p-6">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-brand-700">Parcours principal</p>
-            <h2 className="mt-1 font-display text-lg font-bold text-ink-950">Calculer la paie puis declarer les retenues</h2>
-            <p className="mt-1 text-sm text-ink-500">Le module social doit vous aider a savoir quoi payer, quoi retenir et quoi comptabiliser sur le mois en cours.</p>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <div className="rounded-xl bg-brand-50 px-3 py-2 text-sm text-brand-800">
-              <span className="font-semibold">{fmtCDF(payroll.totalSocialDue)}</span> social a reverser
-            </div>
-            <div className="rounded-xl bg-warning-50 px-3 py-2 text-sm text-warning-800">
-              <span className="font-semibold">{fmtCDF(iprEstimate.monthlyTax)}</span> IPR estime
-            </div>
-            <div className="rounded-xl bg-accent-50 px-3 py-2 text-sm text-accent-800">
-              <span className="font-semibold">{fmtCDF(iereEstimate.amount)}</span> IERE estime
-            </div>
-          </div>
-        </div>
-        <div className="mt-4 grid gap-3 md:grid-cols-4">
-          {socialWorkflow.steps.map((step, index) => (
-            <div key={step.id} className="rounded-2xl bg-ink-50 p-3">
-              <p className="text-xs text-ink-500">{index + 1}. {step.title}</p>
-              <p className="mt-1 text-sm font-semibold text-ink-900">{step.detail}</p>
-            </div>
-          ))}
-        </div>
-        {socialWorkflow.priorities.length > 0 && (
-          <div className="mt-4 rounded-2xl bg-ink-50 p-4">
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <p className="text-sm font-semibold text-ink-900">A suivre ce mois-ci</p>
-                <p className="text-xs text-ink-500">Les principaux montants a verifier avant declaration et comptabilisation.</p>
-              </div>
-              <span className="text-xs text-ink-500">{socialWorkflow.priorities.length} poste(s)</span>
-            </div>
-            <div className="mt-3 grid gap-2 md:grid-cols-3">
-              {socialWorkflow.priorities.map((item) => (
-                <div key={item.label} className="rounded-xl bg-white px-3 py-3 ring-1 ring-ink-100">
-                  <p className="text-xs text-ink-500">{item.label}</p>
-                  <p className={`mt-1 font-display text-lg font-bold ${item.tone === 'brand' ? 'text-brand-700' : item.tone === 'warning' ? 'text-warning-700' : 'text-accent-700'}`}>{fmtCDF(item.amount)}</p>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
       </div>
 
       <div className="grid gap-6 lg:grid-cols-3">
