@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Calculator, Percent, TrendingUp, Users, Wallet } from 'lucide-react';
+import { Calculator, Percent, Users, Wallet } from 'lucide-react';
 import { useAuth } from '../../lib/auth';
 import { fmtCDF, fmtPct } from '../../lib/format';
 import { useTransactions } from '../../lib/hooks';
