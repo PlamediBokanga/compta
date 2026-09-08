@@ -68,7 +68,7 @@ export function CustomersPage() {
           {loading && Array.from({ length: 5 }).map((_, index) => <div key={index} className="px-5 py-3"><div className="skeleton h-14" /></div>)}
           {!loading && filtered.length === 0 && <p className="px-5 py-10 text-center text-sm text-ink-500">Aucun client enregistré.</p>}
           {!loading && filtered.map((customer) => (
-            <div key={customer.id} className="group flex flex-wrap items-center gap-3 px-5 py-4 hover:bg-ink-50/60 transition">
+            <div key={customer.id} onClick={() => setEditing(customer)} className="group flex cursor-pointer flex-wrap items-center gap-3 px-5 py-4 transition hover:bg-ink-50/60">
               <div className="grid h-10 w-10 place-items-center rounded-xl bg-brand-100 text-sm font-semibold text-brand-700">{initials(customer.name)}</div>
               <div className="min-w-[220px] flex-1">
                 <div className="flex flex-wrap items-center gap-2">
@@ -83,9 +83,9 @@ export function CustomersPage() {
                 </div>
               </div>
               <div className="flex items-center gap-1 opacity-0 transition group-hover:opacity-100">
-                <button onClick={() => toggleActive(customer)} className="rounded-lg p-1.5 text-ink-500 hover:bg-ink-100 hover:text-ink-900" title={customer.active ? 'Désactiver' : 'Réactiver'}><Check size={15} /></button>
-                <button onClick={() => setEditing(customer)} className="rounded-lg p-1.5 text-ink-500 hover:bg-ink-100 hover:text-ink-900" title="Modifier"><Pencil size={15} /></button>
-                <button onClick={() => remove(customer)} className="rounded-lg p-1.5 text-ink-400 hover:bg-danger-50 hover:text-danger-600" title="Supprimer"><Trash2 size={15} /></button>
+                <button onClick={(event) => { event.stopPropagation(); toggleActive(customer); }} className="rounded-lg p-1.5 text-ink-500 hover:bg-ink-100 hover:text-ink-900" title={customer.active ? 'Désactiver' : 'Réactiver'}><Check size={15} /></button>
+                <button onClick={(event) => { event.stopPropagation(); setEditing(customer); }} className="rounded-lg p-1.5 text-ink-500 hover:bg-ink-100 hover:text-ink-900" title="Modifier"><Pencil size={15} /></button>
+                <button onClick={(event) => { event.stopPropagation(); remove(customer); }} className="rounded-lg p-1.5 text-ink-400 hover:bg-danger-50 hover:text-danger-600" title="Supprimer"><Trash2 size={15} /></button>
               </div>
             </div>
           ))}
