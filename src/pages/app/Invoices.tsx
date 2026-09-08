@@ -11,7 +11,7 @@ import { logAction } from '../../lib/audit';
 import { sendInvoiceEmail, sendReminderEmail } from '../../lib/email';
 import { fmtDate, fmtMoney, fmtMoneyWords, initials } from '../../lib/format';
 import { useCatalogItems, useCategories, useCustomers, useInvoices, useTransactions } from '../../lib/hooks';
-import { buildInvoiceQrPayload, buildVerificationCode, canNormalizeInvoice, getInvoiceComplianceChecks, getInvoiceNormalizationLabel, getInvoiceNormalizationStatus, RDC_STANDARD_VAT_RATE } from '../../lib/rdc';
+import { buildInvoiceQrPayload, buildVerificationCode, canNormalizeInvoice, getInvoiceNormalizationLabel, getInvoiceNormalizationStatus, RDC_STANDARD_VAT_RATE } from '../../lib/rdc';
 import type { CatalogItem, CatalogItemType, Category, Customer, Invoice, InvoiceItem, InvoiceKind, InvoiceStatus, Profile, Transaction } from '../../lib/types';
 
 const statusMeta: Record<InvoiceStatus, { label: string; tone: 'success' | 'danger' | 'brand' | 'neutral'; icon: LucideIcon }> = {
@@ -1680,11 +1680,6 @@ function InvoiceEditor({
     };
   }, [items, nonTaxableAmount, otherTaxesAmount]);
 
-  const compliance = useMemo(
-    () => getInvoiceComplianceChecks({ number: invoiceNumber, issue_date: issueDate, total: totals.total, vat_total: totals.vatTotal, customer_name: customerName }, profile),
-    [customerName, issueDate, invoiceNumber, profile, totals.total, totals.vatTotal],
-  );
-
   const effectiveExchangeRate = useMemo(() => parseExchangeRateValue(exchangeRateInput), [exchangeRateInput]);
   const usdEquivalent = useMemo(() => computeUsdAmount(totals.total, currency, effectiveExchangeRate), [currency, effectiveExchangeRate, totals.total]);
   const invoiceNotes = useMemo(() => buildInvoiceNotes(headerNote, notes, effectiveExchangeRate, crossBorderOperation), [crossBorderOperation, effectiveExchangeRate, headerNote, notes]);
@@ -2003,7 +1998,6 @@ function InvoiceEditor({
           <div><p className="text-xs text-ink-500">Numero</p><input value={invoiceNumber} onChange={(e) => setInvoiceNumber(e.target.value.toUpperCase())} className="input mt-1 w-[240px] font-mono" /></div>
           <div><p className="text-xs text-ink-500">Emetteur</p><p className="font-semibold text-ink-900">{profile?.company_name || 'Mon activite'}</p><p className="text-xs text-ink-500">{userEmail}</p><p className="text-xs text-ink-400">Serie configuree : {profile?.invoice_series || 'FAC'}</p></div>
         </div>
-        {!isQuote && <div className="rounded-xl bg-brand-50 p-4 ring-1 ring-brand-200"><div className="flex items-center justify-between gap-3"><div><p className="text-sm font-semibold text-brand-800">Facture standard puis normalisation DGI</p><p className="text-xs text-brand-700">Code local : {buildVerificationCode({ number: invoiceNumber, issue_date: issueDate, total: totals.total, vat_total: totals.vatTotal }, profile)}</p></div><Badge tone={compliance.score >= 80 ? 'success' : 'warning'}>{compliance.score}% conforme</Badge></div><p className="mt-2 text-xs text-brand-700">La facture est creee d abord comme facture standard. La normalisation se fait ensuite depuis la liste des factures.</p></div>}
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           <div><label className="label">Client enregistre</label><select value={selectedCustomerId} onChange={(e) => applyCustomer(activeCustomers.find((customer) => customer.id === e.target.value))} className="input"><option value="">Selectionner un client</option>{activeCustomers.map((customer) => <option key={customer.id} value={customer.id}>{customer.name}</option>)}</select></div>
           <div><label className="label">Client *</label><input value={customerName} onChange={(e) => setCustomerName(e.target.value)} className="input" placeholder="Nom du client" /></div>
