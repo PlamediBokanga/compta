@@ -239,8 +239,6 @@ function CategoryEditor({
             <label className="label">Taux de TVA</label>
             <select value={vatRate} onChange={(e) => setVatRate(Number(e.target.value))} className="input">
               <option value={0}>0%</option>
-              <option value={5.5}>5,5%</option>
-              <option value={10}>10%</option>
               <option value={16}>16%</option>
             </select>
           </div>
