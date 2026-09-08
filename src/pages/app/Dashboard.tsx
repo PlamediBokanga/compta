@@ -39,6 +39,7 @@ export function DashboardPage() {
 
   const stats = useMemo(() => computeStats(transactions, invoices), [transactions, invoices]);
   const complianceOverview = useMemo(() => computeRdcComplianceOverview(profile, invoices, declarations, transactions), [profile, invoices, declarations, transactions]);
+  const overdueInvoices = invoices.filter((invoice) => !invoice.is_quote && effectiveInvoiceStatus(invoice) === 'overdue');
 
   useEffect(() => {
     if (!user) return;
