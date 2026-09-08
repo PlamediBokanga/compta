@@ -125,6 +125,7 @@ export function DocumentsPage() {
   const [dragOver, setDragOver] = useState(false);
   const [matching, setMatching] = useState<AccountingDocument | null>(null);
   const [reviewing, setReviewing] = useState<AccountingDocument | null>(null);
+  const [selectedDocument, setSelectedDocument] = useState<AccountingDocument | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [viewFilter, setViewFilter] = useState<'all' | 'to_review' | 'created' | 'matched'>('all');
 
@@ -422,7 +423,7 @@ export function DocumentsPage() {
           const expenseTx = transactions.find((t) => t.document_id === doc.id);
           const matchedTx = transactions.find((t) => t.id === doc.transaction_id);
           return (
-            <div key={doc.id} className="card group p-4 transition hover:shadow-pop">
+            <div key={doc.id} onClick={() => setSelectedDocument(doc)} className="card group cursor-pointer p-4 transition hover:shadow-pop">
               <div className="flex items-start justify-between">
                 <div className="grid h-10 w-10 place-items-center rounded-lg bg-ink-100 text-ink-600">
                   <FileText size={18} />
@@ -430,7 +431,7 @@ export function DocumentsPage() {
                 <div className="flex items-center gap-1">
                   {doc.status === 'matched' && (
                     <button
-                      onClick={() => unlink(doc)}
+                      onClick={(event) => { event.stopPropagation(); unlink(doc); }}
                       className="rounded-lg p-1.5 text-ink-400 opacity-0 transition hover:bg-ink-100 hover:text-ink-700 group-hover:opacity-100"
                       title="Annuler le rapprochement"
                     >
@@ -438,7 +439,7 @@ export function DocumentsPage() {
                     </button>
                   )}
                   <button
-                    onClick={() => remove(doc)}
+                    onClick={(event) => { event.stopPropagation(); remove(doc); }}
                     className="rounded-lg p-1.5 text-ink-400 opacity-0 transition hover:bg-danger-50 hover:text-danger-600 group-hover:opacity-100"
                   >
                     <Trash2 size={16} />
@@ -451,7 +452,7 @@ export function DocumentsPage() {
               <p className="text-xs text-ink-500">{kindLabel[doc.kind]} | {fmtDate(doc.created_at)}</p>
               {doc.file_url && (
                 <a
-                  href={doc.file_url}
+                  onClick={(event) => event.stopPropagation()} href={doc.file_url}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="mt-1 inline-flex items-center gap-1 text-xs font-medium text-brand-700 hover:text-brand-800"
@@ -511,7 +512,7 @@ export function DocumentsPage() {
                   <div className="flex items-center gap-3">
                     {!expenseTx ? (
                       <button
-                        onClick={() => setReviewing(doc)}
+                        onClick={(event) => { event.stopPropagation(); setReviewing(doc); }}
                         className="text-xs font-medium text-ink-700 hover:text-ink-900"
                       >
                         Creer la depense
@@ -520,7 +521,7 @@ export function DocumentsPage() {
                       <span className="text-xs font-medium text-success-700">Depense creee</span>
                     )}
                     <button
-                      onClick={() => setMatching(doc)}
+                      onClick={(event) => { event.stopPropagation(); setMatching(doc); }}
                       className="text-xs font-medium text-brand-700 hover:text-brand-800"
                     >
                       Rapprocher le paiement
@@ -541,6 +542,15 @@ export function DocumentsPage() {
         pageSize={PAGE_SIZE}
       />
 
+      <DocumentDetailsModal
+        doc={selectedDocument}
+        transaction={selectedDocument ? transactions.find((item) => item.document_id === selectedDocument.id) || null : null}
+        categories={categories}
+        onClose={() => setSelectedDocument(null)}
+        onReview={() => { if (selectedDocument) { setSelectedDocument(null); setReviewing(selectedDocument); } }}
+        onMatch={() => { if (selectedDocument) { setSelectedDocument(null); setMatching(selectedDocument); } }}
+        onCategorize={categorizeExpense}
+      />
       <ExpenseReviewModal
         doc={reviewing}
         onClose={() => setReviewing(null)}
@@ -560,6 +570,71 @@ export function DocumentsPage() {
   );
 }
 
+function DocumentDetailsModal({
+  doc,
+  transaction,
+  categories,
+  onClose,
+  onReview,
+  onMatch,
+  onCategorize,
+}: {
+  doc: AccountingDocument | null;
+  transaction: Transaction | null;
+  categories: import('../../lib/types').Category[];
+  onClose: () => void;
+  onReview: () => void;
+  onMatch: () => void;
+  onCategorize: (transaction: Transaction, categoryId: string) => Promise<void>;
+}) {
+  if (!doc) return null;
+
+  return (
+    <Modal open={!!doc} onClose={onClose} title="Details du justificatif" size="md">
+      <div className="space-y-5">
+        <div className="rounded-2xl bg-ink-50 p-4">
+          <p className="text-xs uppercase tracking-[0.16em] text-ink-500">{kindLabel[doc.kind]}</p>
+          <h3 className="mt-1 truncate font-display text-lg font-bold text-ink-950">{doc.file_name}</h3>
+          <div className="mt-3 grid gap-2 text-sm text-ink-700 sm:grid-cols-2">
+            <span>Fournisseur : <strong>{doc.supplier || 'Non renseigne'}</strong></span>
+            <span>Date : <strong>{doc.date ? fmtDate(doc.date) : 'Non renseignee'}</strong></span>
+            <span>Montant : <strong>{doc.amount != null ? fmtCDF(Number(doc.amount)) : '-'}</strong></span>
+            <span>TVA : <strong>{Number(doc.vat_amount) > 0 ? fmtCDF(Number(doc.vat_amount)) : '-'}</strong></span>
+          </div>
+        </div>
+        {transaction ? (
+          <div className="space-y-3">
+            <div className="flex items-center gap-2 text-sm text-success-700">
+              <CheckCircle2 size={15} /> Depense comptable creee
+            </div>
+            <div>
+              <label className="label">Categorie</label>
+              <select
+                value={transaction.category_id ?? ''}
+                onChange={(event) => onCategorize(transaction, event.target.value)}
+                className="input"
+              >
+                <option value="">A categoriser</option>
+                {categories.filter((category) => category.kind === 'expense').map((category) => (
+                  <option key={category.id} value={category.id}>{category.label}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+        ) : (
+          <div className="rounded-xl bg-warning-50 p-3 text-sm text-warning-800">
+            Cette pièce n est pas encore enregistrée comme dépense comptable.
+          </div>
+        )}
+        <div className="flex flex-wrap justify-end gap-2 border-t border-ink-100 pt-4">
+          {doc.file_url && <a href={doc.file_url} target="_blank" rel="noopener noreferrer" className="btn-secondary">Voir le fichier</a>}
+          {!transaction && <button onClick={onReview} className="btn-primary">Verifier et creer</button>}
+          {!doc.transaction_id && <button onClick={onMatch} className="btn-secondary">Rapprocher le paiement</button>}
+        </div>
+      </div>
+    </Modal>
+  );
+}
 function ExpenseReviewModal({
   doc,
   onClose,
