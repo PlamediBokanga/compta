@@ -809,22 +809,11 @@ export function InvoicesPage() {
     return { paid, pending, overdue };
   }, [advanceAppliedByInvoice, creditedByInvoice, list, settledByInvoice]);
 
-  const normalizationWorkflow = useMemo(() => {
-    const standard = list.filter((invoice) => !invoice.is_quote && getInvoiceNormalizationStatus(invoice, profile) === 'standard').length;
-    const ready = list.filter((invoice) => !invoice.is_quote && getInvoiceNormalizationStatus(invoice, profile) === 'ready').length;
-    const normalized = list.filter((invoice) => !invoice.is_quote && getInvoiceNormalizationStatus(invoice, profile) === 'normalized').length;
-    const priority = list
+  const normalizationWorkflow = useMemo(() => ({
+    priority: list
       .filter((invoice) => !invoice.is_quote && getInvoiceNormalizationStatus(invoice, profile) === 'ready')
-      .slice(0, 4);
-    return {
-      standard,
-      ready,
-      normalized,
-      priority,
-      profileReady: Boolean(profile?.tax_id) && Boolean(profile?.rccm) && Boolean(profile?.def_device_id),
-    };
-  }, [list, profile]);
-
+      .slice(0, 4),
+  }), [list, profile]);
   const normalizationMissingFields = useMemo(() => {
     return [
       !profile?.tax_id ? 'NIF' : null,
@@ -1470,7 +1459,7 @@ export function InvoicesPage() {
       </div>}
 
 
-      {isInvoicesTab && <div className="card p-6"><div className="flex flex-wrap items-start justify-between gap-3"><div><h2 className="font-display text-base font-bold text-ink-900">File de normalisation DGI</h2><p className="mt-1 text-xs text-ink-500">Suivi operationnel des factures deja pretes a passer a l etape de normalisation locale.</p></div><div className="flex flex-wrap gap-2">{normalizationMissingFields.length === 0 ? <span className="rounded-xl bg-success-50 px-3 py-2 text-sm text-success-800">Profil pret pour NIF / RCCM / DEF</span> : <span className="rounded-xl bg-warning-50 px-3 py-2 text-sm text-warning-800">Champs a completer : {normalizationMissingFields.join(', ')}</span>}</div></div><div className="mt-4 grid gap-3 lg:grid-cols-[1.15fr,0.85fr]"><div className="space-y-2">{normalizationWorkflow.priority.length === 0 ? <div className="rounded-xl bg-ink-50 p-4 text-sm text-ink-500">Aucune facture prete a normaliser pour le moment. Commencez par envoyer une facture avec un profil fiscal RDC complet.</div> : normalizationWorkflow.priority.map((invoice) => <div key={invoice.id} className="rounded-xl bg-ink-50 p-4"><div className="flex items-center justify-between gap-3"><div><p className="text-sm font-semibold text-ink-900">{invoice.number || '-'} - {invoice.customer_name}</p><p className="mt-1 text-xs text-ink-500">Emission {fmtDate(invoice.issue_date)} | {fmtMoney(invoice.total, getInvoiceCurrency(invoice))}</p></div><button onClick={() => normalizeInvoice(invoice)} className="btn-secondary text-xs"><FileSignature size={14} /> Normaliser</button></div></div>)}</div><div className="rounded-2xl bg-brand-50 p-4 ring-1 ring-brand-200"><p className="text-sm font-semibold text-brand-900">Lecture du flux</p><div className="mt-3 space-y-2 text-sm text-brand-900"><div className="rounded-xl bg-white px-3 py-2">Facture standard : {normalizationWorkflow.standard}</div><div className="rounded-xl bg-white px-3 py-2">Prete a normaliser : {normalizationWorkflow.ready}</div><div className="rounded-xl bg-white px-3 py-2">Normalisee localement : {normalizationWorkflow.normalized}</div></div><p className="mt-3 text-xs text-brand-800">La normalisation locale prepare les identifiants, le code et le QR. Le televersement officiel vers la DGI sera branche ensuite via les API DEF/DGI.</p></div></div></div>}
+      {isInvoicesTab && <div className="card p-6"><div className="flex flex-wrap items-start justify-between gap-3"><div><h2 className="font-display text-base font-bold text-ink-900">File de normalisation DGI</h2><p className="mt-1 text-xs text-ink-500">Suivi operationnel des factures deja pretes a passer a l etape de normalisation locale.</p></div><div className="flex flex-wrap gap-2">{normalizationMissingFields.length === 0 ? <span className="rounded-xl bg-success-50 px-3 py-2 text-sm text-success-800">Profil pret pour NIF / RCCM / DEF</span> : <span className="rounded-xl bg-warning-50 px-3 py-2 text-sm text-warning-800">Champs a completer : {normalizationMissingFields.join(', ')}</span>}</div></div><div className="mt-4"><div className="space-y-2">{normalizationWorkflow.priority.length === 0 ? <div className="rounded-xl bg-ink-50 p-4 text-sm text-ink-500">Aucune facture prete a normaliser pour le moment. Commencez par envoyer une facture avec un profil fiscal RDC complet.</div> : normalizationWorkflow.priority.map((invoice) => <div key={invoice.id} className="rounded-xl bg-ink-50 p-4"><div className="flex items-center justify-between gap-3"><div><p className="text-sm font-semibold text-ink-900">{invoice.number || '-'} - {invoice.customer_name}</p><p className="mt-1 text-xs text-ink-500">Emission {fmtDate(invoice.issue_date)} | {fmtMoney(invoice.total, getInvoiceCurrency(invoice))}</p></div><button onClick={() => normalizeInvoice(invoice)} className="btn-secondary text-xs"><FileSignature size={14} /> Normaliser</button></div></div>)}</div></div></div>}
 
       <div className="card p-4"><div className="flex flex-wrap items-center gap-3"><div className="relative min-w-[220px] flex-1"><Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-400" /><input value={search} onChange={(e) => setSearch(e.target.value)} className="input pl-9" placeholder="Rechercher par client ou numero" /></div><select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value as InvoiceStatus | 'all')} className="input w-auto"><option value="all">Tous statuts</option><option value="draft">Brouillon</option><option value="sent">Envoyee</option><option value="paid">Payee</option><option value="overdue">En retard</option></select></div></div>
 
