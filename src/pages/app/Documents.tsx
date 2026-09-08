@@ -540,17 +540,21 @@ export function DocumentsPage() {
                 </Badge>
                 {doc.status === 'ocr_done' && (
                   <div className="flex items-center gap-3">
-                    <button
-                      onClick={() => createExpense(doc)}
-                      className="text-xs font-medium text-ink-700 hover:text-ink-900"
-                    >
-                      Creer la depense
-                    </button>
+                    {!expenseTx ? (
+                      <button
+                        onClick={() => createExpense(doc)}
+                        className="text-xs font-medium text-ink-700 hover:text-ink-900"
+                      >
+                        Creer la depense
+                      </button>
+                    ) : (
+                      <span className="text-xs font-medium text-success-700">Depense creee</span>
+                    )}
                     <button
                       onClick={() => setMatching(doc)}
                       className="text-xs font-medium text-brand-700 hover:text-brand-800"
                     >
-                      Rapprocher
+                      Rapprocher le paiement
                     </button>
                   </div>
                 )}
