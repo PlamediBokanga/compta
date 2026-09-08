@@ -56,7 +56,7 @@ function findSuggestions(doc: AccountingDocument, transactions: Transaction[]): 
   const suggestions: MatchSuggestion[] = [];
 
   for (const t of transactions) {
-    if (t.document_id) continue;
+    if (t.document_id || t.direction !== 'out') continue;
     const tAmount = Number(t.amount);
     const amountDiff = Math.abs(tAmount - docAmount);
     const amountPct = amountDiff / Math.max(docAmount, 1);
@@ -603,7 +603,7 @@ function MatchModal({
 
   const filtered = useMemo(() => {
     if (!doc) return [];
-    const list = transactions.filter((t) => !t.document_id);
+    const list = transactions.filter((t) => !t.document_id && t.direction === 'out');
     if (!search) return list;
     return list.filter((t) => t.label.toLowerCase().includes(search.toLowerCase()));
   }, [doc, transactions, search]);
@@ -664,7 +664,7 @@ function MatchModal({
         )}
 
         <div>
-          <label className="label">Toutes les transactions non rapprochees</label>
+          <label className="label">Paiements et sorties non rapproches</label>
           <div className="relative">
             <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-400" />
             <input
