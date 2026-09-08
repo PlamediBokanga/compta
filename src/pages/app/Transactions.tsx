@@ -336,22 +336,6 @@ export function TransactionsPage() {
     return { income, expenses };
   }, [filtered]);
 
-  const workflow = useMemo(() => {
-    const uncategorized = transactions.filter((transaction) => !transaction.category_id).length;
-    const suggested = transactions.filter((transaction) => transaction.categorization_state === 'suggested').length;
-    const categorized = transactions.filter((transaction) => !!transaction.category_id).length;
-    const vatTracked = transactions.filter((transaction) => Number(transaction.vat_amount) > 0).length;
-    const reconciled = transactions.filter((transaction) => transaction.reconciliated).length;
-    const pendingReconciliation = transactions.length - reconciled;
-    return { uncategorized, suggested, categorized, vatTracked, reconciled, pendingReconciliation, total: transactions.length };
-  }, [transactions]);
-
-  const priorities = useMemo(() => {
-    return transactions
-      .filter((transaction) => !transaction.category_id || transaction.categorization_state === 'suggested')
-      .slice(0, 5);
-  }, [transactions]);
-
   const totalPages = Math.ceil(filtered.length / PAGE_SIZE);
   const paged = useMemo(() => {
     const start = (page - 1) * PAGE_SIZE;
@@ -477,72 +461,6 @@ export function TransactionsPage() {
             <Plus size={16} /> Transaction
           </button>
         </div>
-      </div>
-
-      <div className="card p-4">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-brand-700">Parcours principal</p>
-            <h2 className="mt-1 font-display text-lg font-bold text-ink-950">Importer, classer et controler la tresorerie</h2>
-            <p className="mt-1 text-sm text-ink-500">
-              Ici, vous importez les releves, classez les mouvements et preparez les controles comptables et fiscaux.
-            </p>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <div className="rounded-xl bg-brand-50 px-3 py-2 text-sm text-brand-800">
-              <span className="font-semibold">{workflow.uncategorized}</span> a classer
-            </div>
-            <div className="rounded-xl bg-warning-50 px-3 py-2 text-sm text-warning-800">
-              <span className="font-semibold">{workflow.suggested}</span> a valider
-            </div>
-            <div className="rounded-xl bg-success-50 px-3 py-2 text-sm text-success-800">
-              <span className="font-semibold">{workflow.categorized}</span> deja classes
-            </div>
-            <div className="rounded-xl bg-ink-100 px-3 py-2 text-sm text-ink-700">
-              <span className="font-semibold">{workflow.pendingReconciliation}</span> a rapprocher
-            </div>
-          </div>
-        </div>
-        <div className="mt-4 grid gap-3 md:grid-cols-4">
-          <div className="rounded-2xl bg-ink-50 p-3">
-            <p className="text-xs text-ink-500">1. Importer la banque</p>
-            <p className="mt-1 text-sm font-semibold text-ink-900">Releve bancaire ou import CSV</p>
-          </div>
-          <div className="rounded-2xl bg-ink-50 p-3">
-            <p className="text-xs text-ink-500">2. Classer les mouvements</p>
-            <p className="mt-1 text-sm font-semibold text-ink-900">{workflow.uncategorized} mouvement(s) restent a affecter</p>
-          </div>
-          <div className="rounded-2xl bg-ink-50 p-3">
-            <p className="text-xs text-ink-500">3. Verifier la TVA</p>
-            <p className="mt-1 text-sm font-semibold text-ink-900">{workflow.vatTracked} ligne(s) avec TVA suivie</p>
-          </div>
-          <div className="rounded-2xl bg-ink-50 p-3">
-            <p className="text-xs text-ink-500">4. Controler les rapprochements</p>
-            <p className="mt-1 text-sm font-semibold text-ink-900">{workflow.pendingReconciliation} mouvement(s) a verifier</p>
-          </div>
-        </div>
-        {priorities.length > 0 && (
-          <div className="mt-4 rounded-2xl bg-warning-50 p-4 ring-1 ring-warning-100">
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <p className="text-sm font-semibold text-warning-900">A traiter maintenant</p>
-                <p className="text-xs text-warning-800">Les premiers mouvements qui bloquent la comptabilisation propre.</p>
-              </div>
-              <span className="text-xs font-medium text-warning-800">{priorities.length} priorite(s)</span>
-            </div>
-            <div className="mt-3 space-y-2">
-              {priorities.map((transaction) => (
-                <div key={transaction.id} className="flex items-center justify-between gap-3 rounded-xl bg-white px-3 py-2 text-sm">
-                  <div>
-                    <p className="font-medium text-ink-900">{transaction.label}</p>
-                    <p className="text-xs text-ink-500">{fmtDate(transaction.date)} | {transaction.categorization_state === 'suggested' ? 'Categorie proposee a confirmer' : 'Categorie manquante'}</p>
-                  </div>
-                  <span className="font-semibold text-ink-900">{fmtCDF(Number(transaction.amount))}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
       </div>
 
       <div className="card p-4">

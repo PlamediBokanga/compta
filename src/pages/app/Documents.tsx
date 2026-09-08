@@ -290,19 +290,6 @@ export function DocumentsPage() {
     return { pending, matched, ocrDone, total: items.length };
   }, [items]);
 
-  const workflow = useMemo(() => {
-    const unmatchedOcr = items.filter((doc) => doc.status === 'ocr_done' && !doc.transaction_id && !transactions.some((transaction) => transaction.document_id === doc.id)).length;
-    const withVat = items.filter((doc) => Number(doc.vat_amount) > 0).length;
-    const missingFileUrl = items.filter((doc) => !doc.file_url).length;
-    return { unmatchedOcr, withVat, missingFileUrl };
-  }, [items, transactions]);
-
-  const actionQueue = useMemo(() => {
-    return items
-      .filter((doc) => (doc.status === 'ocr_done' && !transactions.some((transaction) => transaction.document_id === doc.id)) || doc.status === 'pending')
-      .slice(0, 4);
-  }, [items, transactions]);
-
   const filteredItems = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
     return items.filter((doc) => {
@@ -342,70 +329,6 @@ export function DocumentsPage() {
           className="hidden"
           onChange={(e) => handleFiles(e.target.files)}
         />
-      </div>
-
-      <div className="card p-5">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-brand-700">Parcours principal</p>
-            <h2 className="mt-1 font-display text-lg font-bold text-ink-950">Deposer, classer puis rapprocher les depenses</h2>
-            <p className="mt-1 text-sm text-ink-500">
-              Les justificatifs servent a fiabiliser la comptabilite, les achats, la TVA deductible et la piste d audit.
-            </p>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <div className="rounded-xl bg-warning-50 px-3 py-2 text-sm text-warning-800">
-              <span className="font-semibold">{workflow.unmatchedOcr}</span> piece(s) a rapprocher
-            </div>
-            <div className="rounded-xl bg-brand-50 px-3 py-2 text-sm text-brand-800">
-              <span className="font-semibold">{workflow.withVat}</span> avec TVA detectee
-            </div>
-            <div className="rounded-xl bg-ink-100 px-3 py-2 text-sm text-ink-700">
-              <span className="font-semibold">{workflow.missingFileUrl}</span> sans lien public
-            </div>
-          </div>
-        </div>
-        <div className="mt-4 grid gap-3 md:grid-cols-4">
-          <div className="rounded-2xl bg-ink-50 p-3">
-            <p className="text-xs text-ink-500">1. Importer</p>
-            <p className="mt-1 text-sm font-semibold text-ink-900">Recus, factures et releves</p>
-          </div>
-          <div className="rounded-2xl bg-ink-50 p-3">
-            <p className="text-xs text-ink-500">2. Lire</p>
-            <p className="mt-1 text-sm font-semibold text-ink-900">OCR et extraction fournisseur / montant</p>
-          </div>
-          <div className="rounded-2xl bg-ink-50 p-3">
-            <p className="text-xs text-ink-500">3. Rapprocher</p>
-            <p className="mt-1 text-sm font-semibold text-ink-900">{workflow.unmatchedOcr} piece(s) attendent une transaction</p>
-          </div>
-          <div className="rounded-2xl bg-ink-50 p-3">
-            <p className="text-xs text-ink-500">4. Justifier</p>
-            <p className="mt-1 text-sm font-semibold text-ink-900">Base propre pour TVA et controles</p>
-          </div>
-        </div>
-        {actionQueue.length > 0 && (
-          <div className="mt-4 rounded-2xl bg-brand-50 p-4 ring-1 ring-brand-100">
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <p className="text-sm font-semibold text-brand-900">Pieces a traiter en priorite</p>
-                <p className="text-xs text-brand-800">Commencez par celles qui sont lues mais pas encore rattachees.</p>
-              </div>
-              <span className="text-xs font-medium text-brand-800">{actionQueue.length} priorite(s)</span>
-            </div>
-            <div className="mt-3 grid gap-2 lg:grid-cols-2">
-              {actionQueue.map((doc) => (
-                <div key={doc.id} className="rounded-xl bg-white px-3 py-2 ring-1 ring-brand-100">
-                  <p className="text-sm font-medium text-ink-900">{doc.file_name}</p>
-                  <p className="mt-1 text-xs text-ink-500">
-                    {statusMeta[doc.status].label}
-                    {doc.supplier ? ' | ' + doc.supplier : ''}
-                    {doc.amount != null ? ' | ' + fmtCDF(Number(doc.amount)) : ''}
-                  </p>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
       </div>
 
       {/* Stats */}
