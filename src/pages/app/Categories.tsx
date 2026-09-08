@@ -172,7 +172,7 @@ function CategoryEditor({
     if (!open) return;
     setLabel(category?.label ?? '');
     setKind(category?.kind ?? 'expense');
-    setVatRate(category?.vat_rate ?? 20);
+    setVatRate(category?.vat_rate ?? 16);
     setKeywords((category?.keywords ?? []).join(', '));
   }, [category, open]);
 
