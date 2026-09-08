@@ -536,13 +536,202 @@ function resolveOperationalAccount(transaction: Transaction, categoryLabel: stri
   if (accountingEvent === 'asset_disposal_nbv') {
     return { accountNumber: '654000', accountName: 'Valeurs comptables des cessions courantes d immobilisations', syscohadaClass: '65', categoryKind: 'expense' };
   }
+  if (accountingEvent === 'treasury_equity_acquisition') {
+    return { accountNumber: '502100', accountName: 'Actions', syscohadaClass: '50', categoryKind: 'asset' };
+  }
+  if (accountingEvent === 'treasury_equity_additional_release') {
+    return { accountNumber: '472600', accountName: 'Versements restant a effectuer sur titres non liberes', syscohadaClass: '47', categoryKind: 'liability' };
+  }
+  if (accountingEvent === 'treasury_bond_acquisition_immobilized') {
+    return { accountNumber: '274500', accountName: 'Obligations', syscohadaClass: '27', categoryKind: 'asset' };
+  }
+  if (accountingEvent === 'treasury_bond_acquisition_placement') {
+    return { accountNumber: '503300', accountName: 'Obligations de placement', syscohadaClass: '50', categoryKind: 'asset' };
+  }
+  if (accountingEvent === 'treasury_security_acquisition_fees') {
+    return { accountNumber: '631100', accountName: 'Frais sur titres', syscohadaClass: '63', categoryKind: 'expense' };
+  }
+  if (accountingEvent === 'treasury_dividend_income') {
+    return { accountNumber: '771100', accountName: 'Revenus des titres', syscohadaClass: '77', categoryKind: 'income' };
+  }
+  if (accountingEvent === 'treasury_coupon_immobilized') {
+    return { accountNumber: '772200', accountName: 'Revenus des obligations immobilisees', syscohadaClass: '77', categoryKind: 'income' };
+  }
+  if (accountingEvent === 'treasury_coupon_placement') {
+    return { accountNumber: '778200', accountName: 'Interets sur titres de placement', syscohadaClass: '77', categoryKind: 'income' };
+  }
   if (accountingEvent === 'treasury_placement_subscription' || accountingEvent === 'treasury_placement_redemption') {
     return { accountNumber: '503100', accountName: 'Titres de placement', syscohadaClass: '50', categoryKind: 'asset' };
   }
   if (accountingEvent === 'treasury_placement_interest') {
     return { accountNumber: '778100', accountName: 'Produits financiers', syscohadaClass: '77', categoryKind: 'income' };
   }
-  if (accountingEvent === 'subsidy_operating_award' || accountingEvent === 'subsidy_operating_collection') {
+  if (accountingEvent === 'treasury_placement_sale_gain') {
+    return { accountNumber: '777100', accountName: 'Gains sur cessions de titres de placement', syscohadaClass: '77', categoryKind: 'income' };
+  }
+  if (accountingEvent === 'treasury_placement_sale_loss') {
+    return { accountNumber: '677100', accountName: 'Pertes sur cessions de titres de placement', syscohadaClass: '67', categoryKind: 'expense' };
+  }
+  if (accountingEvent === 'treasury_investment_sale_gain') {
+    return { accountNumber: '772200', accountName: 'Revenus des cessions de titres immobilises', syscohadaClass: '77', categoryKind: 'income' };
+  }
+  if (accountingEvent === 'treasury_investment_sale_loss') {
+    return { accountNumber: '675100', accountName: 'Pertes sur cessions de titres immobilises', syscohadaClass: '67', categoryKind: 'expense' };
+  }
+  if (accountingEvent === 'treasury_security_impairment') {
+    return { accountNumber: '697200', accountName: 'Dotations aux depreciations des immobilisations financieres', syscohadaClass: '69', categoryKind: 'expense' };
+  }
+  if (accountingEvent === 'treasury_security_impairment_reversal') {
+    return { accountNumber: '797500', accountName: 'Reprises de depreciations sur titres', syscohadaClass: '79', categoryKind: 'income' };
+  }
+  if (accountingEvent === 'term_deposit_opening' || accountingEvent === 'term_deposit_closing') {
+    return { accountNumber: '525100', accountName: 'Banques depots a terme', syscohadaClass: '52', categoryKind: 'asset' };
+  }
+  if (accountingEvent === 'term_deposit_interest') {
+    return { accountNumber: '778200', accountName: 'Gains sur operations financieres', syscohadaClass: '77', categoryKind: 'income' };
+  }
+  if (accountingEvent === 'subsidiary_advance_disbursement' || accountingEvent === 'subsidiary_advance_repayment') {
+    return { accountNumber: '466100', accountName: 'Groupe, comptes courants', syscohadaClass: '46', categoryKind: 'asset' };
+  }
+  if (accountingEvent === 'subsidiary_advance_interest') {
+    return { accountNumber: '778200', accountName: 'Gains sur operations financieres', syscohadaClass: '77', categoryKind: 'income' };
+  }
+  if (accountingEvent === 'customer_fx_loss_closing' || accountingEvent === 'supplier_fx_loss_closing') {
+    return { accountNumber: '478100', accountName: 'Ecart de conversion actif', syscohadaClass: '47', categoryKind: 'asset' };
+  }
+  if (accountingEvent === 'customer_fx_gain_closing' || accountingEvent === 'supplier_fx_gain_closing') {
+    return { accountNumber: '479100', accountName: 'Ecart de conversion passif', syscohadaClass: '47', categoryKind: 'liability' };
+  }
+  if (accountingEvent === 'stock_opening_cancel' || accountingEvent === 'stock_closing_recognition') {
+    return { accountNumber: '311100', accountName: 'Stock de marchandises', syscohadaClass: '31', categoryKind: 'asset' };
+  }
+  if (accountingEvent === 'doubtful_customer_transfer') {
+    return { accountNumber: '416100', accountName: 'Clients douteux ou litigieux', syscohadaClass: '41', categoryKind: 'asset' };
+  }
+  if (accountingEvent === 'doubtful_customer_impairment') {
+    return { accountNumber: '491100', accountName: 'Depreciations des comptes clients', syscohadaClass: '49', categoryKind: 'asset' };
+  }
+  if (accountingEvent === 'doubtful_customer_reversal') {
+    return { accountNumber: '759100', accountName: 'Reprises de charges pour depreciation des creances', syscohadaClass: '75', categoryKind: 'income' };
+  }
+  if (accountingEvent === 'bad_debt_writeoff') {
+    return { accountNumber: '654100', accountName: 'Pertes sur creances irrecouvrables', syscohadaClass: '65', categoryKind: 'expense' };
+  }
+  if (accountingEvent === 'inventory_depreciation') {
+    return { accountNumber: '659300', accountName: 'Charges pour depreciation des stocks', syscohadaClass: '65', categoryKind: 'expense' };
+  }
+  if (accountingEvent === 'inventory_depreciation_reversal') {
+    return { accountNumber: '759300', accountName: 'Reprises de depreciation des stocks', syscohadaClass: '75', categoryKind: 'income' };
+  }
+  if (accountingEvent === 'operating_provision_charge') {
+    return { accountNumber: '691100', accountName: 'Dotations aux provisions pour risques et charges', syscohadaClass: '69', categoryKind: 'expense' };
+  }
+  if (accountingEvent === 'operating_provision_reversal') {
+    return { accountNumber: '791100', accountName: 'Reprises de provisions pour risques et charges', syscohadaClass: '79', categoryKind: 'income' };
+  }
+  if (accountingEvent === 'prepaid_expense') {
+    return { accountNumber: '476100', accountName: 'Charges constatees d avance', syscohadaClass: '47', categoryKind: 'asset' };
+  }
+  if (accountingEvent === 'accrued_expense') {
+    return { accountNumber: '408100', accountName: 'Fournisseurs, factures non parvenues', syscohadaClass: '40', categoryKind: 'liability' };
+  }
+  if (accountingEvent === 'accrued_income') {
+    return { accountNumber: '418100', accountName: 'Clients, produits a recevoir', syscohadaClass: '41', categoryKind: 'asset' };
+  }
+  if (accountingEvent === 'deferred_income') {
+    return { accountNumber: '477100', accountName: 'Produits constates d avance', syscohadaClass: '47', categoryKind: 'liability' };
+  }
+  if (accountingEvent === 'profit_allocation_reserve') {
+    return { accountNumber: '111100', accountName: 'Reserves legales', syscohadaClass: '11', categoryKind: 'equity' };
+  }
+  if (accountingEvent === 'dividends_declared' || accountingEvent === 'dividend_payment') {
+    return { accountNumber: '465100', accountName: 'Associes, dividendes a payer', syscohadaClass: '46', categoryKind: 'liability' };
+  }  if (accountingEvent === 'loan_receipt' || accountingEvent === 'loan_principal_repayment' || accountingEvent === 'loan_installment_payment') {
+    return { accountNumber: '162100', accountName: 'Emprunts a moyen et long terme', syscohadaClass: '16', categoryKind: 'liability' };
+  }
+  if (accountingEvent === 'loan_interest_payment') {
+    return { accountNumber: '671100', accountName: 'Interets des emprunts', syscohadaClass: '67', categoryKind: 'expense' };
+  }
+  if (accountingEvent === 'loan_accrued_interest') {
+    return { accountNumber: '166100', accountName: 'Interets courus sur emprunts', syscohadaClass: '16', categoryKind: 'liability' };
+  }
+  if (accountingEvent === 'lease_security_deposit') {
+    return { accountNumber: '275100', accountName: 'Depots et cautionnements verses', syscohadaClass: '27', categoryKind: 'asset' };
+  }
+  if (accountingEvent === 'lease_contract_signature') {
+    return { accountNumber: '241100', accountName: 'Materiel et outillage', syscohadaClass: '24', categoryKind: 'asset' };
+  }
+  if (accountingEvent === 'lease_rent_payment') {
+    return { accountNumber: '623100', accountName: 'Redevances de credit-bail', syscohadaClass: '62', categoryKind: 'expense' };
+  }
+  if (accountingEvent === 'lease_option_exercise') {
+    return { accountNumber: '241100', accountName: 'Materiel et outillage', syscohadaClass: '24', categoryKind: 'asset' };
+  }
+  if (accountingEvent === 'lease_asset_amortization') {
+    return { accountNumber: '681100', accountName: 'Dotations aux amortissements', syscohadaClass: '68', categoryKind: 'expense' };
+  }
+  if (accountingEvent === 'investment_grant_award' || accountingEvent === 'investment_grant_collection') {
+    return { accountNumber: '449400', accountName: 'Etat, subventions d investissement a recevoir', syscohadaClass: '44', categoryKind: 'asset' };
+  }
+  if (accountingEvent === 'investment_grant_asset_purchase') {
+    return { accountNumber: '241100', accountName: 'Materiel et outillage', syscohadaClass: '24', categoryKind: 'asset' };
+  }  if (accountingEvent === 'capital_contribution_cash' || accountingEvent === 'capital_contribution_in_kind' || accountingEvent === 'capital_increase' || accountingEvent === 'capital_debt_conversion' || accountingEvent === 'capital_reserve_incorporation' || accountingEvent === 'external_contribution') {
+    return { accountNumber: '101100', accountName: 'Capital social', syscohadaClass: '10', categoryKind: 'equity' };
+  }
+  if (accountingEvent === 'capital_call') {
+    return { accountNumber: '101200', accountName: 'Capital souscrit appele non verse', syscohadaClass: '10', categoryKind: 'equity' };
+  }
+  if (accountingEvent === 'capital_call_payment') {
+    return { accountNumber: '101300', accountName: 'Capital souscrit appele verse', syscohadaClass: '10', categoryKind: 'equity' };
+  }
+  if (accountingEvent === 'capital_unpaid_call' || accountingEvent === 'capital_reduction_payment') {
+    return { accountNumber: '461100', accountName: 'Apporteurs, comptes courants', syscohadaClass: '46', categoryKind: 'liability' };
+  }
+  if (accountingEvent === 'capital_reduction') {
+    return { accountNumber: '101100', accountName: 'Capital social', syscohadaClass: '10', categoryKind: 'equity' };
+  }
+  if (accountingEvent === 'capital_formation_fees') {
+    return { accountNumber: '632100', accountName: 'Frais de constitution', syscohadaClass: '63', categoryKind: 'expense' };
+  }
+  if (accountingEvent === 'vat_liquidation_payable' || accountingEvent === 'vat_payment') {
+    return { accountNumber: '444100', accountName: 'Etat, TVA due', syscohadaClass: '44', categoryKind: 'liability' };
+  }
+  if (accountingEvent === 'vat_liquidation_credit') {
+    return { accountNumber: '444900', accountName: 'Etat, credit de TVA a reporter', syscohadaClass: '44', categoryKind: 'asset' };
+  }
+  if (accountingEvent === 'ibp_accrual') {
+    return { accountNumber: '891100', accountName: 'Impot sur les benefices', syscohadaClass: '89', categoryKind: 'expense' };
+  }
+  if (accountingEvent === 'ibp_advance_payment') {
+    return { accountNumber: '449200', accountName: 'Etat, acomptes verses sur impots', syscohadaClass: '44', categoryKind: 'asset' };
+  }
+  if (accountingEvent === 'ibp_settlement') {
+    return { accountNumber: '441100', accountName: 'Etat, impot sur les benefices a payer', syscohadaClass: '44', categoryKind: 'liability' };
+  }
+  if (accountingEvent === 'dgi_tax_payment') {
+    return { accountNumber: '442800', accountName: 'Autres impots et taxes a payer', syscohadaClass: '44', categoryKind: 'liability' };
+  }
+  if (accountingEvent === 'payroll_advance' || accountingEvent === 'payroll_loan') {
+    return { accountNumber: '421100', accountName: 'Personnel, avances et acomptes', syscohadaClass: '42', categoryKind: 'asset' };
+  }
+  if (accountingEvent === 'payroll_garnishment') {
+    return { accountNumber: '423100', accountName: 'Personnel, oppositions', syscohadaClass: '42', categoryKind: 'liability' };
+  }
+  if (accountingEvent === 'payroll_gross' || accountingEvent === 'payroll_bonus' || accountingEvent === 'payroll_benefit') {
+    return { accountNumber: '661100', accountName: 'Remunerations directes', syscohadaClass: '66', categoryKind: 'expense' };
+  }
+  if (accountingEvent === 'payroll_withholding' || accountingEvent === 'payroll_net_payment') {
+    return { accountNumber: '422100', accountName: 'Personnel, remunerations dues', syscohadaClass: '42', categoryKind: 'liability' };
+  }
+  if (accountingEvent === 'payroll_ipr') {
+    return { accountNumber: '442100', accountName: 'IPR a reverser', syscohadaClass: '44', categoryKind: 'liability' };
+  }
+  if (accountingEvent === 'payroll_social_employee' || accountingEvent === 'payroll_social_employer' || accountingEvent === 'payroll_social_payment') {
+    return { accountNumber: '431100', accountName: 'CNSS a payer', syscohadaClass: '43', categoryKind: 'liability' };
+  }
+  if (accountingEvent === 'payroll_external_staff') {
+    return { accountNumber: '637100', accountName: 'Remunerations de personnel exterieur', syscohadaClass: '63', categoryKind: 'expense' };
+  }  if (accountingEvent === 'subsidy_operating_award' || accountingEvent === 'subsidy_operating_collection') {
     return { accountNumber: '714100', accountName: 'Subvention d exploitation', syscohadaClass: '71', categoryKind: 'income' };
   }
   if (accountingEvent === 'subsidy_balance_award' || accountingEvent === 'subsidy_balance_collection') {
@@ -1640,13 +1829,93 @@ export function buildAccountingReport(transactions: Transaction[], categories: C
       } else if (accountingEvent === 'asset_impairment_reversal') {
         lines.push(buildEntry(transaction, categoryLabel, journalMeta.code, journalMeta.label, { accountNumber: '291000', accountName: 'Depreciations des immobilisations', syscohadaClass: '29', categoryKind: 'asset' }, amountTtc, 0));
         lines.push(buildEntry(transaction, categoryLabel, journalMeta.code, journalMeta.label, { accountNumber: '791300', accountName: 'Reprises de depreciations des immobilisations', syscohadaClass: '79', categoryKind: 'income' }, 0, amountTtc));
+      } else if (accountingEvent === 'treasury_dividend_income') {
+        lines.push(buildEntry(transaction, categoryLabel, journalMeta.code, journalMeta.label, settlementAccount, amountTtc, 0));
+        lines.push(buildEntry(transaction, categoryLabel, journalMeta.code, journalMeta.label, { accountNumber: '771100', accountName: 'Revenus des titres', syscohadaClass: '77', categoryKind: 'income' }, 0, amountTtc));
+      } else if (accountingEvent === 'treasury_coupon_immobilized') {
+        lines.push(buildEntry(transaction, categoryLabel, journalMeta.code, journalMeta.label, settlementAccount, amountTtc, 0));
+        lines.push(buildEntry(transaction, categoryLabel, journalMeta.code, journalMeta.label, { accountNumber: '772200', accountName: 'Revenus des obligations immobilisees', syscohadaClass: '77', categoryKind: 'income' }, 0, amountTtc));
+      } else if (accountingEvent === 'treasury_coupon_placement') {
+        lines.push(buildEntry(transaction, categoryLabel, journalMeta.code, journalMeta.label, settlementAccount, amountTtc, 0));
+        lines.push(buildEntry(transaction, categoryLabel, journalMeta.code, journalMeta.label, { accountNumber: '778200', accountName: 'Interets sur titres de placement', syscohadaClass: '77', categoryKind: 'income' }, 0, amountTtc));
       } else if (accountingEvent === 'treasury_placement_interest') {
         lines.push(buildEntry(transaction, categoryLabel, journalMeta.code, journalMeta.label, settlementAccount, amountTtc, 0));
         lines.push(buildEntry(transaction, categoryLabel, journalMeta.code, journalMeta.label, { accountNumber: '778100', accountName: 'Produits financiers', syscohadaClass: '77', categoryKind: 'income' }, 0, amountTtc));
       } else if (accountingEvent === 'treasury_placement_redemption') {
         lines.push(buildEntry(transaction, categoryLabel, journalMeta.code, journalMeta.label, settlementAccount, amountTtc, 0));
         lines.push(buildEntry(transaction, categoryLabel, journalMeta.code, journalMeta.label, { accountNumber: '503100', accountName: 'Titres de placement', syscohadaClass: '50', categoryKind: 'asset' }, 0, amountTtc));
-      } else if (isInvoicePaymentBankCreditTransaction(transaction)) {
+      } else if (accountingEvent === 'treasury_placement_sale_gain') {
+        lines.push(buildEntry(transaction, categoryLabel, journalMeta.code, journalMeta.label, settlementAccount, amountTtc, 0));
+        lines.push(buildEntry(transaction, categoryLabel, journalMeta.code, journalMeta.label, { accountNumber: '777100', accountName: 'Gains sur cessions de titres de placement', syscohadaClass: '77', categoryKind: 'income' }, 0, amountTtc));
+      } else if (accountingEvent === 'treasury_investment_sale_gain') {
+        lines.push(buildEntry(transaction, categoryLabel, journalMeta.code, journalMeta.label, settlementAccount, amountTtc, 0));
+        lines.push(buildEntry(transaction, categoryLabel, journalMeta.code, journalMeta.label, { accountNumber: '772200', accountName: 'Revenus des cessions de titres immobilises', syscohadaClass: '77', categoryKind: 'income' }, 0, amountTtc));
+      } else if (accountingEvent === 'treasury_security_impairment_reversal') {
+        lines.push(buildEntry(transaction, categoryLabel, journalMeta.code, journalMeta.label, { accountNumber: '296700', accountName: 'Depreciations des titres', syscohadaClass: '29', categoryKind: 'asset' }, amountTtc, 0));
+        lines.push(buildEntry(transaction, categoryLabel, journalMeta.code, journalMeta.label, { accountNumber: '797500', accountName: 'Reprises de depreciations sur titres', syscohadaClass: '79', categoryKind: 'income' }, 0, amountTtc));
+      } else if (accountingEvent === 'term_deposit_interest') {
+        lines.push(buildEntry(transaction, categoryLabel, journalMeta.code, journalMeta.label, settlementAccount, amountTtc, 0));
+        lines.push(buildEntry(transaction, categoryLabel, journalMeta.code, journalMeta.label, { accountNumber: '778200', accountName: 'Gains sur operations financieres', syscohadaClass: '77', categoryKind: 'income' }, 0, amountTtc));
+      } else if (accountingEvent === 'term_deposit_closing') {
+        lines.push(buildEntry(transaction, categoryLabel, journalMeta.code, journalMeta.label, settlementAccount, amountTtc, 0));
+        lines.push(buildEntry(transaction, categoryLabel, journalMeta.code, journalMeta.label, { accountNumber: '525100', accountName: 'Banques depots a terme', syscohadaClass: '52', categoryKind: 'asset' }, 0, amountTtc));
+      } else if (accountingEvent === 'subsidiary_advance_interest') {
+        lines.push(buildEntry(transaction, categoryLabel, journalMeta.code, journalMeta.label, settlementAccount, amountTtc, 0));
+        lines.push(buildEntry(transaction, categoryLabel, journalMeta.code, journalMeta.label, { accountNumber: '778200', accountName: 'Gains sur operations financieres', syscohadaClass: '77', categoryKind: 'income' }, 0, amountTtc));
+      } else if (accountingEvent === 'subsidiary_advance_repayment') {
+        lines.push(buildEntry(transaction, categoryLabel, journalMeta.code, journalMeta.label, settlementAccount, amountTtc, 0));
+        lines.push(buildEntry(transaction, categoryLabel, journalMeta.code, journalMeta.label, { accountNumber: '466100', accountName: 'Groupe, comptes courants', syscohadaClass: '46', categoryKind: 'asset' }, 0, amountTtc));
+      } else if (accountingEvent === 'customer_fx_gain_closing') {
+        lines.push(buildEntry(transaction, categoryLabel, journalMeta.code, journalMeta.label, { accountNumber: '411100', accountName: 'Clients', syscohadaClass: '41', categoryKind: 'asset' }, amountTtc, 0));
+        lines.push(buildEntry(transaction, categoryLabel, journalMeta.code, journalMeta.label, { accountNumber: '479100', accountName: 'Ecart de conversion passif', syscohadaClass: '47', categoryKind: 'liability' }, 0, amountTtc));
+      } else if (accountingEvent === 'supplier_fx_gain_closing') {
+        lines.push(buildEntry(transaction, categoryLabel, journalMeta.code, journalMeta.label, { accountNumber: '401100', accountName: 'Fournisseurs', syscohadaClass: '40', categoryKind: 'liability' }, amountTtc, 0));
+        lines.push(buildEntry(transaction, categoryLabel, journalMeta.code, journalMeta.label, { accountNumber: '479100', accountName: 'Ecart de conversion passif', syscohadaClass: '47', categoryKind: 'liability' }, 0, amountTtc));
+      } else if (accountingEvent === 'stock_closing_recognition') {
+        lines.push(buildEntry(transaction, categoryLabel, journalMeta.code, journalMeta.label, { accountNumber: '311100', accountName: 'Stock de marchandises', syscohadaClass: '31', categoryKind: 'asset' }, amountTtc, 0));
+        lines.push(buildEntry(transaction, categoryLabel, journalMeta.code, journalMeta.label, { accountNumber: '603100', accountName: 'Variation des stocks de marchandises', syscohadaClass: '60', categoryKind: 'expense' }, 0, amountTtc));
+      } else if (accountingEvent === 'doubtful_customer_reversal') {
+        lines.push(buildEntry(transaction, categoryLabel, journalMeta.code, journalMeta.label, { accountNumber: '491100', accountName: 'Depreciations des comptes clients', syscohadaClass: '49', categoryKind: 'asset' }, amountTtc, 0));
+        lines.push(buildEntry(transaction, categoryLabel, journalMeta.code, journalMeta.label, { accountNumber: '759100', accountName: 'Reprises de charges pour depreciation des creances', syscohadaClass: '75', categoryKind: 'income' }, 0, amountTtc));
+      } else if (accountingEvent === 'inventory_depreciation_reversal') {
+        lines.push(buildEntry(transaction, categoryLabel, journalMeta.code, journalMeta.label, { accountNumber: '395100', accountName: 'Depreciations des stocks', syscohadaClass: '39', categoryKind: 'asset' }, amountTtc, 0));
+        lines.push(buildEntry(transaction, categoryLabel, journalMeta.code, journalMeta.label, { accountNumber: '759300', accountName: 'Reprises de depreciation des stocks', syscohadaClass: '75', categoryKind: 'income' }, 0, amountTtc));
+      } else if (accountingEvent === 'operating_provision_reversal') {
+        lines.push(buildEntry(transaction, categoryLabel, journalMeta.code, journalMeta.label, { accountNumber: '194100', accountName: 'Provisions pour risques et charges', syscohadaClass: '19', categoryKind: 'liability' }, amountTtc, 0));
+        lines.push(buildEntry(transaction, categoryLabel, journalMeta.code, journalMeta.label, { accountNumber: '791100', accountName: 'Reprises de provisions pour risques et charges', syscohadaClass: '79', categoryKind: 'income' }, 0, amountTtc));
+      } else if (accountingEvent === 'accrued_income') {
+        lines.push(buildEntry(transaction, categoryLabel, journalMeta.code, journalMeta.label, { accountNumber: '418100', accountName: 'Clients, produits a recevoir', syscohadaClass: '41', categoryKind: 'asset' }, amountTtc, 0));
+        lines.push(buildEntry(transaction, categoryLabel, journalMeta.code, journalMeta.label, { accountNumber: '706100', accountName: 'Prestations de services', syscohadaClass: '70', categoryKind: 'income' }, 0, amountTtc));
+      } else if (accountingEvent === 'deferred_income') {
+        lines.push(buildEntry(transaction, categoryLabel, journalMeta.code, journalMeta.label, { accountNumber: '706100', accountName: 'Prestations de services', syscohadaClass: '70', categoryKind: 'income' }, amountTtc, 0));
+        lines.push(buildEntry(transaction, categoryLabel, journalMeta.code, journalMeta.label, { accountNumber: '477100', accountName: 'Produits constates d avance', syscohadaClass: '47', categoryKind: 'liability' }, 0, amountTtc));      } else if (accountingEvent === 'loan_receipt') {
+        lines.push(buildEntry(transaction, categoryLabel, journalMeta.code, journalMeta.label, settlementAccount, amountTtc, 0));
+        lines.push(buildEntry(transaction, categoryLabel, journalMeta.code, journalMeta.label, { accountNumber: '162100', accountName: 'Emprunts a moyen et long terme', syscohadaClass: '16', categoryKind: 'liability' }, 0, amountTtc));
+      } else if (accountingEvent === 'investment_grant_award') {
+        lines.push(buildEntry(transaction, categoryLabel, journalMeta.code, journalMeta.label, { accountNumber: '449400', accountName: 'Etat, subventions d investissement a recevoir', syscohadaClass: '44', categoryKind: 'asset' }, amountTtc, 0));
+        lines.push(buildEntry(transaction, categoryLabel, journalMeta.code, journalMeta.label, { accountNumber: '141100', accountName: 'Subventions d investissement', syscohadaClass: '14', categoryKind: 'income' }, 0, amountTtc));
+      } else if (accountingEvent === 'investment_grant_collection') {
+        lines.push(buildEntry(transaction, categoryLabel, journalMeta.code, journalMeta.label, settlementAccount, amountTtc, 0));
+        lines.push(buildEntry(transaction, categoryLabel, journalMeta.code, journalMeta.label, { accountNumber: '449400', accountName: 'Etat, subventions d investissement a recevoir', syscohadaClass: '44', categoryKind: 'asset' }, 0, amountTtc));      } else if (accountingEvent === 'capital_contribution_cash' || accountingEvent === 'external_contribution') {
+        lines.push(buildEntry(transaction, categoryLabel, journalMeta.code, journalMeta.label, settlementAccount, amountTtc, 0));
+        lines.push(buildEntry(transaction, categoryLabel, journalMeta.code, journalMeta.label, { accountNumber: '101100', accountName: 'Capital social', syscohadaClass: '10', categoryKind: 'equity' }, 0, amountTtc));
+      } else if (accountingEvent === 'capital_contribution_in_kind') {
+        lines.push(buildEntry(transaction, categoryLabel, journalMeta.code, journalMeta.label, { accountNumber: '241100', accountName: 'Immobilisations apportees', syscohadaClass: '24', categoryKind: 'asset' }, amountTtc, 0));
+        lines.push(buildEntry(transaction, categoryLabel, journalMeta.code, journalMeta.label, { accountNumber: '101100', accountName: 'Capital social', syscohadaClass: '10', categoryKind: 'equity' }, 0, amountTtc));
+      } else if (accountingEvent === 'capital_call') {
+        lines.push(buildEntry(transaction, categoryLabel, journalMeta.code, journalMeta.label, { accountNumber: '109100', accountName: 'Apporteurs, capital souscrit non appele', syscohadaClass: '10', categoryKind: 'equity' }, amountTtc, 0));
+        lines.push(buildEntry(transaction, categoryLabel, journalMeta.code, journalMeta.label, { accountNumber: '101200', accountName: 'Capital souscrit appele non verse', syscohadaClass: '10', categoryKind: 'equity' }, 0, amountTtc));
+      } else if (accountingEvent === 'capital_call_payment') {
+        lines.push(buildEntry(transaction, categoryLabel, journalMeta.code, journalMeta.label, settlementAccount, amountTtc, 0));
+        lines.push(buildEntry(transaction, categoryLabel, journalMeta.code, journalMeta.label, { accountNumber: '101300', accountName: 'Capital souscrit appele verse', syscohadaClass: '10', categoryKind: 'equity' }, 0, amountTtc));
+      } else if (accountingEvent === 'capital_increase' || accountingEvent === 'capital_debt_conversion' || accountingEvent === 'capital_reserve_incorporation') {
+        const sourceAccount = accountingEvent === 'capital_debt_conversion' ? '401100' : accountingEvent === 'capital_reserve_incorporation' ? '111100' : '461100';
+        const sourceName = accountingEvent === 'capital_debt_conversion' ? 'Fournisseurs' : accountingEvent === 'capital_reserve_incorporation' ? 'Reserves' : 'Apporteurs';
+        lines.push(buildEntry(transaction, categoryLabel, journalMeta.code, journalMeta.label, { accountNumber: sourceAccount, accountName: sourceName, syscohadaClass: sourceAccount.slice(0, 2), categoryKind: 'liability' }, amountTtc, 0));
+        lines.push(buildEntry(transaction, categoryLabel, journalMeta.code, journalMeta.label, { accountNumber: '101100', accountName: 'Capital social', syscohadaClass: '10', categoryKind: 'equity' }, 0, amountTtc));
+      } else if (accountingEvent === 'vat_liquidation_credit') {
+        lines.push(buildEntry(transaction, categoryLabel, journalMeta.code, journalMeta.label, { accountNumber: '444900', accountName: 'Etat, credit de TVA a reporter', syscohadaClass: '44', categoryKind: 'asset' }, amountTtc, 0));
+        lines.push(buildEntry(transaction, categoryLabel, journalMeta.code, journalMeta.label, { accountNumber: '445600', accountName: 'TVA deductible', syscohadaClass: '44', categoryKind: 'asset' }, 0, amountTtc));      } else if (isInvoicePaymentBankCreditTransaction(transaction)) {
         lines.push(buildEntry(transaction, categoryLabel, journalMeta.code, journalMeta.label, settlementAccount, amountTtc, 0));
         lines.push(buildEntry(transaction, categoryLabel, journalMeta.code, journalMeta.label, { accountNumber: '514100', accountName: 'Cheques remis a l encaissement', syscohadaClass: '51', categoryKind: 'treasury' }, 0, amountTtc));
       } else if (isInvoiceEffectCollectionTransaction(transaction)) {
@@ -1716,7 +1985,127 @@ export function buildAccountingReport(transactions: Transaction[], categories: C
           if (vatAmount > 0) lines.push(buildEntry(transaction, categoryLabel, journalMeta.code, journalMeta.label, { accountNumber: '443100', accountName: 'TVA facturee', syscohadaClass: '44', categoryKind: 'vat' }, 0, vatAmount));
         }
       }
-    } else if (accountingEvent === 'investment_advance_payment') {
+    } else if (accountingEvent === 'customer_fx_loss_closing') {
+      lines.push(buildEntry(transaction, categoryLabel, journalMeta.code, journalMeta.label, { accountNumber: '478100', accountName: 'Ecart de conversion actif', syscohadaClass: '47', categoryKind: 'asset' }, amountTtc, 0));
+      lines.push(buildEntry(transaction, categoryLabel, journalMeta.code, journalMeta.label, { accountNumber: '411100', accountName: 'Clients', syscohadaClass: '41', categoryKind: 'asset' }, 0, amountTtc));
+    } else if (accountingEvent === 'supplier_fx_loss_closing') {
+      lines.push(buildEntry(transaction, categoryLabel, journalMeta.code, journalMeta.label, { accountNumber: '478100', accountName: 'Ecart de conversion actif', syscohadaClass: '47', categoryKind: 'asset' }, amountTtc, 0));
+      lines.push(buildEntry(transaction, categoryLabel, journalMeta.code, journalMeta.label, { accountNumber: '401100', accountName: 'Fournisseurs', syscohadaClass: '40', categoryKind: 'liability' }, 0, amountTtc));
+    } else if (accountingEvent === 'stock_opening_cancel') {
+      lines.push(buildEntry(transaction, categoryLabel, journalMeta.code, journalMeta.label, { accountNumber: '603100', accountName: 'Variation des stocks de marchandises', syscohadaClass: '60', categoryKind: 'expense' }, amountTtc, 0));
+      lines.push(buildEntry(transaction, categoryLabel, journalMeta.code, journalMeta.label, { accountNumber: '311100', accountName: 'Stock de marchandises', syscohadaClass: '31', categoryKind: 'asset' }, 0, amountTtc));
+    } else if (accountingEvent === 'doubtful_customer_transfer') {
+      lines.push(buildEntry(transaction, categoryLabel, journalMeta.code, journalMeta.label, { accountNumber: '416100', accountName: 'Clients douteux ou litigieux', syscohadaClass: '41', categoryKind: 'asset' }, amountTtc, 0));
+      lines.push(buildEntry(transaction, categoryLabel, journalMeta.code, journalMeta.label, { accountNumber: '411100', accountName: 'Clients', syscohadaClass: '41', categoryKind: 'asset' }, 0, amountTtc));
+    } else if (accountingEvent === 'doubtful_customer_impairment') {
+      lines.push(buildEntry(transaction, categoryLabel, journalMeta.code, journalMeta.label, { accountNumber: '659100', accountName: 'Charges pour depreciation des creances', syscohadaClass: '65', categoryKind: 'expense' }, amountTtc, 0));
+      lines.push(buildEntry(transaction, categoryLabel, journalMeta.code, journalMeta.label, { accountNumber: '491100', accountName: 'Depreciations des comptes clients', syscohadaClass: '49', categoryKind: 'asset' }, 0, amountTtc));
+    } else if (accountingEvent === 'bad_debt_writeoff') {
+      lines.push(buildEntry(transaction, categoryLabel, journalMeta.code, journalMeta.label, { accountNumber: '654100', accountName: 'Pertes sur creances irrecouvrables', syscohadaClass: '65', categoryKind: 'expense' }, amountTtc, 0));
+      lines.push(buildEntry(transaction, categoryLabel, journalMeta.code, journalMeta.label, { accountNumber: '416100', accountName: 'Clients douteux ou litigieux', syscohadaClass: '41', categoryKind: 'asset' }, 0, amountTtc));
+    } else if (accountingEvent === 'inventory_depreciation') {
+      lines.push(buildEntry(transaction, categoryLabel, journalMeta.code, journalMeta.label, { accountNumber: '659300', accountName: 'Charges pour depreciation des stocks', syscohadaClass: '65', categoryKind: 'expense' }, amountTtc, 0));
+      lines.push(buildEntry(transaction, categoryLabel, journalMeta.code, journalMeta.label, { accountNumber: '395100', accountName: 'Depreciations des stocks', syscohadaClass: '39', categoryKind: 'asset' }, 0, amountTtc));
+    } else if (accountingEvent === 'operating_provision_charge') {
+      lines.push(buildEntry(transaction, categoryLabel, journalMeta.code, journalMeta.label, { accountNumber: '691100', accountName: 'Dotations aux provisions pour risques et charges', syscohadaClass: '69', categoryKind: 'expense' }, amountTtc, 0));
+      lines.push(buildEntry(transaction, categoryLabel, journalMeta.code, journalMeta.label, { accountNumber: '194100', accountName: 'Provisions pour risques et charges', syscohadaClass: '19', categoryKind: 'liability' }, 0, amountTtc));
+    } else if (accountingEvent === 'prepaid_expense') {
+      lines.push(buildEntry(transaction, categoryLabel, journalMeta.code, journalMeta.label, { accountNumber: '476100', accountName: 'Charges constatees d avance', syscohadaClass: '47', categoryKind: 'asset' }, amountTtc, 0));
+      lines.push(buildEntry(transaction, categoryLabel, journalMeta.code, journalMeta.label, { accountNumber: '606100', accountName: 'Achats non stockes', syscohadaClass: '60', categoryKind: 'expense' }, 0, amountTtc));
+    } else if (accountingEvent === 'accrued_expense') {
+      lines.push(buildEntry(transaction, categoryLabel, journalMeta.code, journalMeta.label, { accountNumber: '606100', accountName: 'Achats non stockes', syscohadaClass: '60', categoryKind: 'expense' }, amountTtc, 0));
+      lines.push(buildEntry(transaction, categoryLabel, journalMeta.code, journalMeta.label, { accountNumber: '408100', accountName: 'Fournisseurs, factures non parvenues', syscohadaClass: '40', categoryKind: 'liability' }, 0, amountTtc));
+    } else if (accountingEvent === 'profit_allocation_reserve') {
+      lines.push(buildEntry(transaction, categoryLabel, journalMeta.code, journalMeta.label, { accountNumber: '131100', accountName: 'Resultat net a affecter', syscohadaClass: '13', categoryKind: 'equity' }, amountTtc, 0));
+      lines.push(buildEntry(transaction, categoryLabel, journalMeta.code, journalMeta.label, { accountNumber: '111100', accountName: 'Reserves legales', syscohadaClass: '11', categoryKind: 'equity' }, 0, amountTtc));
+    } else if (accountingEvent === 'dividends_declared') {
+      lines.push(buildEntry(transaction, categoryLabel, journalMeta.code, journalMeta.label, { accountNumber: '131100', accountName: 'Resultat net a affecter', syscohadaClass: '13', categoryKind: 'equity' }, amountTtc, 0));
+      lines.push(buildEntry(transaction, categoryLabel, journalMeta.code, journalMeta.label, { accountNumber: '465100', accountName: 'Associes, dividendes a payer', syscohadaClass: '46', categoryKind: 'liability' }, 0, amountTtc));
+    } else if (accountingEvent === 'dividend_payment') {
+      lines.push(buildEntry(transaction, categoryLabel, journalMeta.code, journalMeta.label, { accountNumber: '465100', accountName: 'Associes, dividendes a payer', syscohadaClass: '46', categoryKind: 'liability' }, amountTtc, 0));
+      lines.push(buildEntry(transaction, categoryLabel, journalMeta.code, journalMeta.label, settlementAccount, 0, amountTtc));    } else if (accountingEvent === 'loan_principal_repayment' || accountingEvent === 'loan_installment_payment') {
+      lines.push(buildEntry(transaction, categoryLabel, journalMeta.code, journalMeta.label, { accountNumber: '162100', accountName: 'Emprunts a moyen et long terme', syscohadaClass: '16', categoryKind: 'liability' }, amountTtc, 0));
+      lines.push(buildEntry(transaction, categoryLabel, journalMeta.code, journalMeta.label, settlementAccount, 0, amountTtc));
+    } else if (accountingEvent === 'loan_interest_payment') {
+      lines.push(buildEntry(transaction, categoryLabel, journalMeta.code, journalMeta.label, { accountNumber: '671100', accountName: 'Interets des emprunts', syscohadaClass: '67', categoryKind: 'expense' }, amountTtc, 0));
+      lines.push(buildEntry(transaction, categoryLabel, journalMeta.code, journalMeta.label, settlementAccount, 0, amountTtc));
+    } else if (accountingEvent === 'loan_accrued_interest') {
+      lines.push(buildEntry(transaction, categoryLabel, journalMeta.code, journalMeta.label, { accountNumber: '671100', accountName: 'Interets des emprunts', syscohadaClass: '67', categoryKind: 'expense' }, amountTtc, 0));
+      lines.push(buildEntry(transaction, categoryLabel, journalMeta.code, journalMeta.label, { accountNumber: '166100', accountName: 'Interets courus sur emprunts', syscohadaClass: '16', categoryKind: 'liability' }, 0, amountTtc));
+    } else if (accountingEvent === 'lease_security_deposit') {
+      lines.push(buildEntry(transaction, categoryLabel, journalMeta.code, journalMeta.label, { accountNumber: '275100', accountName: 'Depots et cautionnements verses', syscohadaClass: '27', categoryKind: 'asset' }, amountTtc, 0));
+      lines.push(buildEntry(transaction, categoryLabel, journalMeta.code, journalMeta.label, settlementAccount, 0, amountTtc));
+    } else if (accountingEvent === 'lease_contract_signature') {
+      lines.push(buildEntry(transaction, categoryLabel, journalMeta.code, journalMeta.label, { accountNumber: '241100', accountName: 'Materiel et outillage', syscohadaClass: '24', categoryKind: 'asset' }, amountTtc, 0));
+      lines.push(buildEntry(transaction, categoryLabel, journalMeta.code, journalMeta.label, { accountNumber: '173100', accountName: 'Dettes de location-acquisition', syscohadaClass: '17', categoryKind: 'liability' }, 0, amountTtc));
+    } else if (accountingEvent === 'lease_rent_payment') {
+      lines.push(buildEntry(transaction, categoryLabel, journalMeta.code, journalMeta.label, { accountNumber: '623100', accountName: 'Redevances de credit-bail', syscohadaClass: '62', categoryKind: 'expense' }, amountTtc, 0));
+      lines.push(buildEntry(transaction, categoryLabel, journalMeta.code, journalMeta.label, settlementAccount, 0, amountTtc));
+    } else if (accountingEvent === 'lease_option_exercise') {
+      lines.push(buildEntry(transaction, categoryLabel, journalMeta.code, journalMeta.label, { accountNumber: '241100', accountName: 'Materiel et outillage', syscohadaClass: '24', categoryKind: 'asset' }, amountTtc, 0));
+      lines.push(buildEntry(transaction, categoryLabel, journalMeta.code, journalMeta.label, settlementAccount, 0, amountTtc));
+    } else if (accountingEvent === 'lease_asset_amortization') {
+      lines.push(buildEntry(transaction, categoryLabel, journalMeta.code, journalMeta.label, { accountNumber: '681100', accountName: 'Dotations aux amortissements', syscohadaClass: '68', categoryKind: 'expense' }, amountTtc, 0));
+      lines.push(buildEntry(transaction, categoryLabel, journalMeta.code, journalMeta.label, { accountNumber: '281500', accountName: 'Amortissements des immobilisations corporelles', syscohadaClass: '28', categoryKind: 'asset' }, 0, amountTtc));
+    } else if (accountingEvent === 'investment_grant_asset_purchase') {
+      if (amountHt > 0) lines.push(buildEntry(transaction, categoryLabel, journalMeta.code, journalMeta.label, { accountNumber: '241100', accountName: 'Materiel et outillage', syscohadaClass: '24', categoryKind: 'asset' }, amountHt, 0));
+      if (vatAmount > 0) lines.push(buildEntry(transaction, categoryLabel, journalMeta.code, journalMeta.label, { accountNumber: '445100', accountName: 'TVA recuperable sur immobilisations', syscohadaClass: '44', categoryKind: 'asset' }, vatAmount, 0));
+      lines.push(buildEntry(transaction, categoryLabel, journalMeta.code, journalMeta.label, settlementAccount, 0, amountTtc));    } else if (accountingEvent === 'capital_unpaid_call') {
+      lines.push(buildEntry(transaction, categoryLabel, journalMeta.code, journalMeta.label, { accountNumber: '461100', accountName: 'Apporteurs', syscohadaClass: '46', categoryKind: 'liability' }, amountTtc, 0));
+      lines.push(buildEntry(transaction, categoryLabel, journalMeta.code, journalMeta.label, { accountNumber: '101200', accountName: 'Capital souscrit appele non verse', syscohadaClass: '10', categoryKind: 'equity' }, 0, amountTtc));
+    } else if (accountingEvent === 'capital_reduction') {
+      lines.push(buildEntry(transaction, categoryLabel, journalMeta.code, journalMeta.label, { accountNumber: '101100', accountName: 'Capital social', syscohadaClass: '10', categoryKind: 'equity' }, amountTtc, 0));
+      lines.push(buildEntry(transaction, categoryLabel, journalMeta.code, journalMeta.label, { accountNumber: '461100', accountName: 'Apporteurs', syscohadaClass: '46', categoryKind: 'liability' }, 0, amountTtc));
+    } else if (accountingEvent === 'capital_reduction_payment') {
+      lines.push(buildEntry(transaction, categoryLabel, journalMeta.code, journalMeta.label, { accountNumber: '461100', accountName: 'Apporteurs', syscohadaClass: '46', categoryKind: 'liability' }, amountTtc, 0));
+      lines.push(buildEntry(transaction, categoryLabel, journalMeta.code, journalMeta.label, settlementAccount, 0, amountTtc));
+    } else if (accountingEvent === 'capital_formation_fees') {
+      lines.push(buildEntry(transaction, categoryLabel, journalMeta.code, journalMeta.label, { accountNumber: '632100', accountName: 'Frais de constitution', syscohadaClass: '63', categoryKind: 'expense' }, amountTtc, 0));
+      lines.push(buildEntry(transaction, categoryLabel, journalMeta.code, journalMeta.label, settlementAccount, 0, amountTtc));
+    } else if (accountingEvent === 'vat_liquidation_payable') {
+      lines.push(buildEntry(transaction, categoryLabel, journalMeta.code, journalMeta.label, { accountNumber: '443100', accountName: 'TVA facturee', syscohadaClass: '44', categoryKind: 'vat' }, amountTtc, 0));
+      lines.push(buildEntry(transaction, categoryLabel, journalMeta.code, journalMeta.label, { accountNumber: '444100', accountName: 'Etat, TVA due', syscohadaClass: '44', categoryKind: 'liability' }, 0, amountTtc));
+    } else if (accountingEvent === 'vat_payment') {
+      lines.push(buildEntry(transaction, categoryLabel, journalMeta.code, journalMeta.label, { accountNumber: '444100', accountName: 'Etat, TVA due', syscohadaClass: '44', categoryKind: 'liability' }, amountTtc, 0));
+      lines.push(buildEntry(transaction, categoryLabel, journalMeta.code, journalMeta.label, settlementAccount, 0, amountTtc));
+    } else if (accountingEvent === 'ibp_accrual') {
+      lines.push(buildEntry(transaction, categoryLabel, journalMeta.code, journalMeta.label, { accountNumber: '891100', accountName: 'Impot sur les benefices', syscohadaClass: '89', categoryKind: 'expense' }, amountTtc, 0));
+      lines.push(buildEntry(transaction, categoryLabel, journalMeta.code, journalMeta.label, { accountNumber: '441100', accountName: 'Etat, impot sur les benefices a payer', syscohadaClass: '44', categoryKind: 'liability' }, 0, amountTtc));
+    } else if (accountingEvent === 'ibp_advance_payment') {
+      lines.push(buildEntry(transaction, categoryLabel, journalMeta.code, journalMeta.label, { accountNumber: '449200', accountName: 'Etat, acomptes verses sur impots', syscohadaClass: '44', categoryKind: 'asset' }, amountTtc, 0));
+      lines.push(buildEntry(transaction, categoryLabel, journalMeta.code, journalMeta.label, settlementAccount, 0, amountTtc));
+    } else if (accountingEvent === 'ibp_settlement') {
+      lines.push(buildEntry(transaction, categoryLabel, journalMeta.code, journalMeta.label, { accountNumber: '441100', accountName: 'Etat, impot sur les benefices a payer', syscohadaClass: '44', categoryKind: 'liability' }, amountTtc, 0));
+      lines.push(buildEntry(transaction, categoryLabel, journalMeta.code, journalMeta.label, settlementAccount, 0, amountTtc));
+    } else if (accountingEvent === 'dgi_tax_payment') {
+      lines.push(buildEntry(transaction, categoryLabel, journalMeta.code, journalMeta.label, { accountNumber: '442800', accountName: 'Autres impots et taxes a payer', syscohadaClass: '44', categoryKind: 'liability' }, amountTtc, 0));
+      lines.push(buildEntry(transaction, categoryLabel, journalMeta.code, journalMeta.label, settlementAccount, 0, amountTtc));
+    } else if (accountingEvent === 'payroll_advance' || accountingEvent === 'payroll_loan') {
+      lines.push(buildEntry(transaction, categoryLabel, journalMeta.code, journalMeta.label, { accountNumber: '421100', accountName: 'Personnel, avances et acomptes', syscohadaClass: '42', categoryKind: 'asset' }, amountTtc, 0));
+      lines.push(buildEntry(transaction, categoryLabel, journalMeta.code, journalMeta.label, settlementAccount, 0, amountTtc));
+    } else if (accountingEvent === 'payroll_garnishment') {
+      lines.push(buildEntry(transaction, categoryLabel, journalMeta.code, journalMeta.label, { accountNumber: '422100', accountName: 'Personnel, remunerations dues', syscohadaClass: '42', categoryKind: 'liability' }, amountTtc, 0));
+      lines.push(buildEntry(transaction, categoryLabel, journalMeta.code, journalMeta.label, { accountNumber: '423100', accountName: 'Personnel, oppositions', syscohadaClass: '42', categoryKind: 'liability' }, 0, amountTtc));
+    } else if (accountingEvent === 'payroll_gross' || accountingEvent === 'payroll_bonus' || accountingEvent === 'payroll_benefit') {
+      lines.push(buildEntry(transaction, categoryLabel, journalMeta.code, journalMeta.label, { accountNumber: '661100', accountName: 'Remunerations directes', syscohadaClass: '66', categoryKind: 'expense' }, amountTtc, 0));
+      lines.push(buildEntry(transaction, categoryLabel, journalMeta.code, journalMeta.label, { accountNumber: '422100', accountName: 'Personnel, remunerations dues', syscohadaClass: '42', categoryKind: 'liability' }, 0, amountTtc));
+    } else if (accountingEvent === 'payroll_withholding' || accountingEvent === 'payroll_ipr' || accountingEvent === 'payroll_social_employee') {
+      const withholdingAccount = accountingEvent === 'payroll_ipr' ? '442100' : accountingEvent === 'payroll_social_employee' ? '431100' : '422100';
+      const withholdingName = accountingEvent === 'payroll_ipr' ? 'IPR a reverser' : accountingEvent === 'payroll_social_employee' ? 'CNSS a payer' : 'Retenues salariales';
+      lines.push(buildEntry(transaction, categoryLabel, journalMeta.code, journalMeta.label, { accountNumber: '422100', accountName: 'Personnel, remunerations dues', syscohadaClass: '42', categoryKind: 'liability' }, amountTtc, 0));
+      lines.push(buildEntry(transaction, categoryLabel, journalMeta.code, journalMeta.label, { accountNumber: withholdingAccount, accountName: withholdingName, syscohadaClass: withholdingAccount.slice(0, 2), categoryKind: 'liability' }, 0, amountTtc));
+    } else if (accountingEvent === 'payroll_social_employer') {
+      lines.push(buildEntry(transaction, categoryLabel, journalMeta.code, journalMeta.label, { accountNumber: '664100', accountName: 'Charges sociales patronales', syscohadaClass: '66', categoryKind: 'expense' }, amountTtc, 0));
+      lines.push(buildEntry(transaction, categoryLabel, journalMeta.code, journalMeta.label, { accountNumber: '431100', accountName: 'CNSS a payer', syscohadaClass: '43', categoryKind: 'liability' }, 0, amountTtc));
+    } else if (accountingEvent === 'payroll_net_payment') {
+      lines.push(buildEntry(transaction, categoryLabel, journalMeta.code, journalMeta.label, { accountNumber: '422100', accountName: 'Personnel, remunerations dues', syscohadaClass: '42', categoryKind: 'liability' }, amountTtc, 0));
+      lines.push(buildEntry(transaction, categoryLabel, journalMeta.code, journalMeta.label, settlementAccount, 0, amountTtc));
+    } else if (accountingEvent === 'payroll_external_staff') {
+      lines.push(buildEntry(transaction, categoryLabel, journalMeta.code, journalMeta.label, { accountNumber: '637100', accountName: 'Remunerations de personnel exterieur', syscohadaClass: '63', categoryKind: 'expense' }, amountTtc, 0));
+      lines.push(buildEntry(transaction, categoryLabel, journalMeta.code, journalMeta.label, { accountNumber: '401100', accountName: 'Fournisseurs', syscohadaClass: '40', categoryKind: 'liability' }, 0, amountTtc));
+    } else if (accountingEvent === 'payroll_social_payment') {
+      lines.push(buildEntry(transaction, categoryLabel, journalMeta.code, journalMeta.label, { accountNumber: '431100', accountName: 'CNSS a payer', syscohadaClass: '43', categoryKind: 'liability' }, amountTtc, 0));
+      lines.push(buildEntry(transaction, categoryLabel, journalMeta.code, journalMeta.label, settlementAccount, 0, amountTtc));    } else if (accountingEvent === 'investment_advance_payment') {
       lines.push(buildEntry(transaction, categoryLabel, journalMeta.code, journalMeta.label, { accountNumber: '252000', accountName: 'Avances et acomptes verses sur immobilisations corporelles', syscohadaClass: '25', categoryKind: 'asset' }, amountTtc, 0));
       lines.push(buildEntry(transaction, categoryLabel, journalMeta.code, journalMeta.label, settlementAccount, 0, amountTtc));
     } else if (accountingEvent === 'investment_invoice_current_received') {
@@ -1736,6 +2125,37 @@ export function buildAccountingReport(transactions: Transaction[], categories: C
     } else if (accountingEvent === 'software_internal_purchase') {
       lines.push(buildEntry(transaction, categoryLabel, journalMeta.code, journalMeta.label, { accountNumber: '213100', accountName: 'Logiciels', syscohadaClass: '21', categoryKind: 'asset' }, amountTtc, 0));
       lines.push(buildEntry(transaction, categoryLabel, journalMeta.code, journalMeta.label, { accountNumber: '481200', accountName: 'Fournisseurs d investissement - immobilisations incorporelles', syscohadaClass: '48', categoryKind: 'liability' }, 0, amountTtc));
+    } else if (accountingEvent === 'treasury_equity_acquisition') {
+      lines.push(buildEntry(transaction, categoryLabel, journalMeta.code, journalMeta.label, { accountNumber: '502100', accountName: 'Actions', syscohadaClass: '50', categoryKind: 'asset' }, amountTtc, 0));
+      lines.push(buildEntry(transaction, categoryLabel, journalMeta.code, journalMeta.label, settlementAccount, 0, amountTtc));
+    } else if (accountingEvent === 'treasury_equity_additional_release') {
+      lines.push(buildEntry(transaction, categoryLabel, journalMeta.code, journalMeta.label, { accountNumber: '472600', accountName: 'Versements restant a effectuer sur titres non liberes', syscohadaClass: '47', categoryKind: 'asset' }, amountTtc, 0));
+      lines.push(buildEntry(transaction, categoryLabel, journalMeta.code, journalMeta.label, settlementAccount, 0, amountTtc));
+    } else if (accountingEvent === 'treasury_bond_acquisition_immobilized') {
+      lines.push(buildEntry(transaction, categoryLabel, journalMeta.code, journalMeta.label, { accountNumber: '274500', accountName: 'Obligations', syscohadaClass: '27', categoryKind: 'asset' }, amountTtc, 0));
+      lines.push(buildEntry(transaction, categoryLabel, journalMeta.code, journalMeta.label, settlementAccount, 0, amountTtc));
+    } else if (accountingEvent === 'treasury_bond_acquisition_placement') {
+      lines.push(buildEntry(transaction, categoryLabel, journalMeta.code, journalMeta.label, { accountNumber: '503300', accountName: 'Obligations de placement', syscohadaClass: '50', categoryKind: 'asset' }, amountTtc, 0));
+      lines.push(buildEntry(transaction, categoryLabel, journalMeta.code, journalMeta.label, settlementAccount, 0, amountTtc));
+    } else if (accountingEvent === 'treasury_security_acquisition_fees') {
+      if (amountHt > 0) lines.push(buildEntry(transaction, categoryLabel, journalMeta.code, journalMeta.label, { accountNumber: '631100', accountName: 'Frais sur titres', syscohadaClass: '63', categoryKind: 'expense' }, amountHt, 0));
+      if (vatAmount > 0) lines.push(buildEntry(transaction, categoryLabel, journalMeta.code, journalMeta.label, { accountNumber: '445600', accountName: 'TVA deductible', syscohadaClass: '44', categoryKind: 'asset' }, vatAmount, 0));
+      lines.push(buildEntry(transaction, categoryLabel, journalMeta.code, journalMeta.label, settlementAccount, 0, amountTtc));
+    } else if (accountingEvent === 'treasury_placement_sale_loss') {
+      lines.push(buildEntry(transaction, categoryLabel, journalMeta.code, journalMeta.label, { accountNumber: '677100', accountName: 'Pertes sur cessions de titres de placement', syscohadaClass: '67', categoryKind: 'expense' }, amountTtc, 0));
+      lines.push(buildEntry(transaction, categoryLabel, journalMeta.code, journalMeta.label, settlementAccount, 0, amountTtc));
+    } else if (accountingEvent === 'treasury_investment_sale_loss') {
+      lines.push(buildEntry(transaction, categoryLabel, journalMeta.code, journalMeta.label, { accountNumber: '675100', accountName: 'Pertes sur cessions de titres immobilises', syscohadaClass: '67', categoryKind: 'expense' }, amountTtc, 0));
+      lines.push(buildEntry(transaction, categoryLabel, journalMeta.code, journalMeta.label, settlementAccount, 0, amountTtc));
+    } else if (accountingEvent === 'treasury_security_impairment') {
+      lines.push(buildEntry(transaction, categoryLabel, journalMeta.code, journalMeta.label, { accountNumber: '697200', accountName: 'Dotations aux depreciations des immobilisations financieres', syscohadaClass: '69', categoryKind: 'expense' }, amountTtc, 0));
+      lines.push(buildEntry(transaction, categoryLabel, journalMeta.code, journalMeta.label, { accountNumber: '296700', accountName: 'Depreciations des titres', syscohadaClass: '29', categoryKind: 'asset' }, 0, amountTtc));
+    } else if (accountingEvent === 'term_deposit_opening') {
+      lines.push(buildEntry(transaction, categoryLabel, journalMeta.code, journalMeta.label, { accountNumber: '525100', accountName: 'Banques depots a terme', syscohadaClass: '52', categoryKind: 'asset' }, amountTtc, 0));
+      lines.push(buildEntry(transaction, categoryLabel, journalMeta.code, journalMeta.label, settlementAccount, 0, amountTtc));
+    } else if (accountingEvent === 'subsidiary_advance_disbursement') {
+      lines.push(buildEntry(transaction, categoryLabel, journalMeta.code, journalMeta.label, { accountNumber: '466100', accountName: 'Groupe, comptes courants', syscohadaClass: '46', categoryKind: 'asset' }, amountTtc, 0));
+      lines.push(buildEntry(transaction, categoryLabel, journalMeta.code, journalMeta.label, settlementAccount, 0, amountTtc));
     } else if (accountingEvent === 'overdraft_fee') {
       lines.push(buildEntry(transaction, categoryLabel, journalMeta.code, journalMeta.label, { accountNumber: '674500', accountName: 'Interets bancaires et sur operations de financement', syscohadaClass: '67', categoryKind: 'expense' }, amountTtc, 0));
       lines.push(buildEntry(transaction, categoryLabel, journalMeta.code, journalMeta.label, settlementAccount, 0, amountTtc));
@@ -1882,51 +2302,4 @@ export function generateCSV(report: AccountingReport): string {
   const rows = report.entries.map((entry) => [entry.date, `"${entry.journalCode} - ${entry.journalLabel}"`, `"${entry.accountNumber} - ${entry.accountName}"`, `"${entry.label.replace(/"/g, '""')}"`, entry.debit.toFixed(2), entry.credit.toFixed(2), (entry.debit - entry.credit).toFixed(2)].join(','));
   return [header, ...rows].join('\n');
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
