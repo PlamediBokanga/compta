@@ -420,12 +420,18 @@ export function TransactionsPage() {
       vat_rate: vatRate,
       vat_amount: vatAmount,
     });
+    setSelectedTransaction((current) => current?.id === transaction.id
+      ? { ...current, category_id: categoryId, categorization_state: categoryId ? 'manual' : 'uncategorized', vat_rate: vatRate, vat_amount: vatAmount }
+      : current);
     reload();
   };
 
   const toggleReconciliation = async (transaction: Transaction) => {
     try {
       await updateTransaction(transaction.id, { reconciliated: !transaction.reconciliated });
+      setSelectedTransaction((current) => current?.id === transaction.id
+        ? { ...current, reconciliated: !transaction.reconciliated }
+        : current);
       reload();
       toast({ kind: 'success', message: transaction.reconciliated ? 'Mouvement remis a controler.' : 'Mouvement marque comme rapproche.' });
     } catch (error) {
