@@ -613,6 +613,7 @@ function ExpenseReviewModal({
   const [amount, setAmount] = useState('');
   const [vatAmount, setVatAmount] = useState('');
   const [saving, setSaving] = useState(false);
+  const [validationError, setValidationError] = useState('');
 
   useEffect(() => {
     if (!doc) return;
@@ -620,6 +621,7 @@ function ExpenseReviewModal({
     setDate(doc.date || new Date().toISOString().slice(0, 10));
     setAmount(doc.amount != null ? String(doc.amount) : '');
     setVatAmount(doc.vat_amount != null ? String(doc.vat_amount) : '0');
+    setValidationError('');
   }, [doc]);
 
   if (!doc) return null;
@@ -628,7 +630,15 @@ function ExpenseReviewModal({
     event.preventDefault();
     const numericAmount = Number(amount);
     const numericVat = Number(vatAmount || 0);
-    if (numericAmount <= 0 || numericVat < 0 || numericVat > numericAmount) return;
+    if (numericAmount <= 0) {
+      setValidationError('Le montant TTC doit etre superieur a zero.');
+      return;
+    }
+    if (numericVat < 0 || numericVat > numericAmount) {
+      setValidationError('La TVA doit etre comprise entre zero et le montant TTC.');
+      return;
+    }
+    setValidationError('');
     setSaving(true);
     try {
       await onConfirm({ supplier: supplier.trim(), date, amount: numericAmount, vatAmount: numericVat });
@@ -659,6 +669,7 @@ function ExpenseReviewModal({
             <input type="number" min="0" step="0.01" value={vatAmount} onChange={(e) => setVatAmount(e.target.value)} className="input" />
           </div>
         </div>
+        {validationError && <p className="rounded-lg bg-danger-50 px-3 py-2 text-sm text-danger-700">{validationError}</p>}
         <div className="flex justify-end gap-2 border-t border-ink-100 pt-4">
           <button type="button" onClick={onClose} className="btn-secondary">Annuler</button>
           <button type="submit" disabled={saving} className="btn-primary">{saving ? 'Enregistrement...' : 'Creer la depense'}</button>
